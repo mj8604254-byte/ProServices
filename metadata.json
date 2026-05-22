@@ -1,0 +1,8 @@
+{
+  "name": "Moz ProServices",
+  "description": "Logistics platform connecting products, services, and deliveries in Mozambique.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": []
+}
