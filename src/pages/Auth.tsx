@@ -27,7 +27,7 @@ type SignupStep = 'basic' | 'role' | 'details' | 'verification';
 
 export function Auth() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loginAsDemo } = useAuth();
   const location = useLocation();
   
   React.useEffect(() => {
@@ -144,6 +144,9 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
     setLoading(true);
     setError(null);
     try {
+      // Guard registration data locally in case email confirmation is required/delayed
+      localStorage.setItem(`pending_profile_${formData.email.trim().toLowerCase()}`, JSON.stringify(formData));
+
       // 1. Create user in Supabase Auth
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
@@ -181,9 +184,16 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
         created_at: new Date().toISOString(),
       };
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert([profileData]);
+      let profileError = null;
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .insert([profileData]);
+        profileError = error;
+      } catch (fetchErr: any) {
+        console.error('Falha de rede ao tentar inserir perfil secundário:', fetchErr);
+        profileError = { message: fetchErr.message || 'Falha de rede (TypeError: Failed to fetch)' };
+      }
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
@@ -317,6 +327,60 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
                       Registar agora
                     </button>
                   </p>
+                </div>
+
+                {/* Modo de Desenvolvimento */}
+                <div className="mt-6 border-t border-slate-100 pt-6">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">
+                    Área de Teste / Modo Rápido (Bypass)
+                  </p>
+                  <p className="text-[10px] text-slate-400 text-center mb-4 leading-normal">
+                    Selecione um perfil de demonstração abaixo para aceder às dashboards e testar as funcionalidades da app instantaneamente.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => loginAsDemo(UserRole.CUSTOMER)}
+                      className="text-[10px] font-black text-blue-600 bg-blue-50/50 hover:bg-blue-100 py-3 rounded-xl transition-all uppercase tracking-wider"
+                    >
+                      Consumidor
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => loginAsDemo(UserRole.SELLER_MICRO)}
+                      className="text-[10px] font-black text-orange bg-orange/5 hover:bg-orange/10 py-3 rounded-xl transition-all uppercase tracking-wider"
+                    >
+                      Vendedor Micro
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => loginAsDemo(UserRole.SELLER_MACRO)}
+                      className="text-[10px] font-black text-slate-700 bg-slate-50 hover:bg-slate-100 py-3 rounded-xl transition-all uppercase tracking-wider"
+                    >
+                      Vendedor Macro
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => loginAsDemo(UserRole.DELIVERER)}
+                      className="text-[10px] font-black text-green-600 bg-green-50/50 hover:bg-green-100 py-3 rounded-xl transition-all uppercase tracking-wider"
+                    >
+                      Entregador
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => loginAsDemo(UserRole.SERVICE_PROVIDER)}
+                      className="text-[10px] font-black text-indigo-600 bg-indigo-50 hover:bg-indigo-100 py-3 rounded-xl transition-all uppercase tracking-wider"
+                    >
+                      Prestador Serviços
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => loginAsDemo(UserRole.ADMIN)}
+                      className="text-[10px] font-black text-red-600 bg-red-50 hover:bg-red-100 py-3 rounded-xl transition-all uppercase tracking-wider"
+                    >
+                      Administrador
+                    </button>
+                  </div>
                 </div>
               </motion.div>
             )}

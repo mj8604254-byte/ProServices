@@ -171,7 +171,7 @@ export function UsersManager() {
                   </td>
                   <td className="px-8 py-6">
                     <p className="text-xs font-bold text-slate-400">
-                      {user.createdAt ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : 'N/A'}
+                      {user.createdAt ? (typeof user.createdAt === 'object' && user.createdAt && 'seconds' in user.createdAt ? new Date((user.createdAt as any).seconds * 1000) : new Date(user.createdAt)).toLocaleDateString() : 'N/A'}
                     </p>
                   </td>
                   <td className="px-8 py-6 text-right">
