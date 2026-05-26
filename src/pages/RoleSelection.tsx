@@ -67,14 +67,14 @@ export function RoleSelection() {
     if (!user || !selectedRole) return;
 
     try {
-      const { error } = await supabase.from('profiles').upsert({
-        uid: user.id,
-        email: user.email,
-        display_name: user.user_metadata?.full_name || user.email?.split('@')[0],
-        role: selectedRole,
-        is_verified: false,
-        created_at: new Date().toISOString(),
-      });
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          display_name: user.user_metadata?.full_name || user.email?.split('@')[0],
+          role: selectedRole,
+          is_verified: false,
+        })
+        .eq('uid', user.id);
       
       if (error) throw error;
       navigate('/');

@@ -277,59 +277,61 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       // Guard registration data locally in case email confirmation is required/delayed
       localStorage.setItem(`pending_profile_${formData.email.trim().toLowerCase()}`, JSON.stringify(formData));
 
-      // 1. Create user in Supabase Auth
+      // 1. Create user in Supabase Auth with complete metadata to feed the database trigger
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
-            full_name: formData.name
+            full_name: formData.name,
+            role: formData.role,
+            phone: formData.phone,
+            business_name: formData.businessName,
+            nuit: formData.nuit,
+            vehicle_type: formData.vehicleType,
+            license_plate: formData.licensePlate
           }
         }
       });
 
       if (signUpError) throw signUpError;
       
-      // Se não houver sessão imediata, é porque a confirmação de email é necessária
-      if (!data.session && data.user) {
-        setStep('verification');
-        return;
-      }
-
       if (!data.user) throw new Error('Falha ao criar utilizador');
 
-      // 2. Save to Public Profiles Table
-      const profileData = {
-        uid: data.user.id,
-        email: formData.email,
-        display_name: formData.name,
-        role: formData.role,
-        phone_number: formData.phone,
-        business_name: formData.businessName,
-        nuit: formData.nuit,
-        vehicle_type: formData.vehicleType,
-        license_plate: formData.licensePlate,
-        onboarding_completed: false,
-        is_verified: false,
-        created_at: new Date().toISOString(),
-      };
-
+      // 2. Update Public Profiles with full structural data
       let profileError = null;
       try {
         const { error } = await supabase
           .from('profiles')
-          .upsert(profileData);
+          .update({
+            display_name: formData.name,
+            role: formData.role,
+            phone_number: formData.phone,
+            business_name: formData.businessName,
+            nuit: formData.nuit,
+            vehicle_type: formData.vehicleType,
+            license_plate: formData.licensePlate,
+            onboarding_completed: true, // Marked true since registration is completed
+            is_verified: false
+          })
+          .eq('uid', data.user.id);
         profileError = error;
       } catch (fetchErr: any) {
-        console.error('Falha de rede ao tentar inserir perfil secundário:', fetchErr);
+        console.error('Falha de rede ao tentar atualizar perfil secundário:', fetchErr);
         profileError = { message: fetchErr.message || 'Falha de rede (TypeError: Failed to fetch)' };
       }
 
       if (profileError) {
         console.error('Profile creation error:', profileError);
-        // We still consider step 'verification' if auth worked
       }
 
+      // 3. Give immediate home screen access if authenticated session exists
+      if (data.session) {
+        navigate('/');
+        return;
+      }
+
+      // If no immediate session, email verification is required or activation is in progress
       setStep('verification');
     } catch (err: any) {
       setError(err.message);

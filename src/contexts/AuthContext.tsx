@@ -90,11 +90,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Initial session check
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id, session.user.email);
-      } else {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn('Silent notice on initial session extraction:', error.message);
+          if (error.message && (
+            error.message.includes('Refresh Token') || 
+            error.message.includes('not found') || 
+            error.message.includes('expired') || 
+            error.message.includes('Failed to fetch')
+          )) {
+            // Clean up stale session state
+            supabase.auth.signOut().catch(() => {});
+          }
+        }
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          await fetchProfile(session.user.id, session.user.email);
+        } else {
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.warn('Session check failed or aborted:', err);
         setLoading(false);
       }
     };
