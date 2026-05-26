@@ -182,7 +182,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 try {
                   const { data, error } = await supabase
                     .from('profiles')
-                    .insert([profileData])
+                    .upsert(profileData, { onConflict: 'uid' })
                     .select()
                     .single();
                   newProfile = data;

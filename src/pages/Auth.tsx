@@ -196,24 +196,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
     }
 
     try {
-      // Check if email database profile row exists
-      try {
-        const { data: matchedProfiles, error: profileError } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('email', emailInput.toLowerCase())
-          .limit(1);
-
-        if (!profileError && (!matchedProfiles || matchedProfiles.length === 0)) {
-          throw new Error('E-mail não registado no Moz Proservices. Por favor, verifique se digitou corretamente ou registe uma nova conta se for o seu primeiro acesso.');
-        }
-      } catch (profileSearchErr: any) {
-        console.warn('Silent fallback on checking registered profile email:', profileSearchErr);
-        if (profileSearchErr.message && profileSearchErr.message.includes('não registado')) {
-          throw profileSearchErr;
-        }
-      }
-
+      // Direct password recovery using resetPasswordForEmail (prevents false negatives on restricted setups)
       const redirectTo = `${window.location.origin}/auth/callback?type=recovery`;
       
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailInput, {
@@ -274,10 +257,28 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
     setLoading(true);
     setError(null);
     try {
-      // Guard registration data locally in case email confirmation is required/delayed
-      localStorage.setItem(`pending_profile_${formData.email.trim().toLowerCase()}`, JSON.stringify(formData));
+      const email = formData.email.trim().toLowerCase();
+      const password = formData.password;
+      const name = formData.name.trim();
 
-      // 1. Create user in Supabase Auth with complete metadata to feed the database trigger
+      // 1. Pre-verify if email is already registered in profiles to completely prevent duplicates
+      const { data: existingUser, error: checkError } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', email);
+
+      if (checkError) {
+        console.warn('Silent note on pre-verifying duplicate email:', checkError.message);
+      }
+
+      if (existingUser && existingUser.length > 0) {
+        throw new Error('Atenção: Este e-mail já está registado no Moz Proservices. Redefina a sua password ou inicie sessão.');
+      }
+
+      // Guard registration data locally in case email confirmation is required/delayed
+      localStorage.setItem(`pending_profile_${email}`, JSON.stringify(formData));
+
+      // 2. Create user in Supabase Auth with complete metadata to feed the database trigger
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -296,15 +297,17 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
 
       if (signUpError) throw signUpError;
       
-      if (!data.user) throw new Error('Falha ao criar utilizador');
+      if (!data.user) throw new Error('Falha ao criar o utilizador no Supabase Auth');
 
-      // 2. Update Public Profiles with full structural data
+      // 3. Upsert Public Profiles with full structural data (prevents primary key conflicts with trigger handle_new_auth_user)
       let profileError = null;
       try {
         const { error } = await supabase
           .from('profiles')
-          .update({
-            display_name: formData.name,
+          .upsert({
+            uid: data.user.id,
+            email: email,
+            display_name: name,
             role: formData.role,
             phone_number: formData.phone,
             business_name: formData.businessName,
@@ -313,8 +316,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
             license_plate: formData.licensePlate,
             onboarding_completed: true, // Marked true since registration is completed
             is_verified: false
-          })
-          .eq('uid', data.user.id);
+          }, { onConflict: 'uid' });
         profileError = error;
       } catch (fetchErr: any) {
         console.error('Falha de rede ao tentar atualizar perfil secundário:', fetchErr);
@@ -322,10 +324,10 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       }
 
       if (profileError) {
-        console.error('Profile creation error:', profileError);
+        console.warn('Profile sync warning (this is expected if automatic email confirmation is active and the session does not exist yet):', profileError.message);
       }
 
-      // 3. Give immediate home screen access if authenticated session exists
+      // 4. Give immediate home screen access if authenticated session exists
       if (data.session) {
         navigate('/');
         return;
