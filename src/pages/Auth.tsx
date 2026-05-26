@@ -22,7 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
 
-type AuthMode = 'login' | 'signup';
+type AuthMode = 'login' | 'signup' | 'recover' | 'reset-password';
 type SignupStep = 'basic' | 'role' | 'details' | 'verification';
 
 export function Auth() {
@@ -31,7 +31,8 @@ export function Auth() {
   const location = useLocation();
   
   React.useEffect(() => {
-    if (user) {
+    // Only redirect to homepage if user exists and we are NOT actively resetting the password
+    if (user && mode !== 'reset-password') {
       navigate('/');
     }
   }, [user, navigate]);
@@ -51,6 +52,19 @@ export function Auth() {
   const [step, setStep] = useState<SignupStep>('basic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(urlError);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Sync mode with search param changes
+  React.useEffect(() => {
+    const qParams = new URLSearchParams(location.search);
+    const m = qParams.get('mode') as AuthMode;
+    if (m === 'login' || m === 'signup' || m === 'recover' || m === 'reset-password') {
+      setMode(m);
+      setError(null);
+      setSuccessMessage(null);
+    }
+  }, [location.search]);
 
   // Form States
   const [formData, setFormData] = useState({
@@ -102,20 +116,48 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
     try {
       if (mode === 'login') {
         const identifier = formData.email.trim();
-        // Simple regex to check if it looks like an email or phone
         const isEmail = identifier.includes('@');
         
-        const loginData = isEmail 
-          ? { email: identifier, password: formData.password }
+        let finalEmail = identifier;
+        let isResolved = isEmail;
+
+        if (!isEmail) {
+          const cleanPhone = identifier.replace(/[\s-+]/g, '');
+          try {
+            const { data: profileRows } = await supabase
+              .from('profiles')
+              .select('email, phone_number, display_name');
+
+            if (profileRows && profileRows.length > 0) {
+              const matchedRow = profileRows.find(row => {
+                const rowPhoneClean = (row.phone_number || '').replace(/[\s-+]/g, '');
+                const cleanInput = cleanPhone;
+                
+                const phoneMatch = rowPhoneClean && cleanInput && (rowPhoneClean.endsWith(cleanInput) || cleanInput.endsWith(rowPhoneClean));
+                const nameMatch = row.display_name && row.display_name.trim().toLowerCase() === identifier.trim().toLowerCase();
+                
+                return phoneMatch || nameMatch;
+              });
+
+              if (matchedRow && matchedRow.email) {
+                finalEmail = matchedRow.email;
+                isResolved = true;
+              }
+            }
+          } catch (searchErr) {
+            console.warn('Silent search warning on finding profiles:', searchErr);
+          }
+        }
+
+        const loginPayload = isResolved 
+          ? { email: finalEmail, password: formData.password }
           : { phone: identifier, password: formData.password };
 
-        const { error } = await supabase.auth.signInWithPassword(loginData);
+        const { error } = await supabase.auth.signInWithPassword(loginPayload);
         
         if (error) {
-          // If it failed and didn't look like email, maybe it's a username (not supported natively by Supabase yet)
-          // But we provide better message
-          if (!isEmail && error.message.includes('email')) {
-            throw new Error('Formato inválido. Por favor use um email ou número de telefone válido.');
+          if (!isResolved && error.message.includes('email')) {
+            throw new Error('Formato inválido ou correspondência de conta não encontrada. Por favor use um e-mail válido.');
           }
           throw error;
         }
@@ -128,13 +170,101 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       console.error('Email Auth Error:', err);
       let message = err.message;
       if (message === 'Invalid login credentials') {
-        message = 'Dados de acesso incorretos. Verifique o email/telefone e a palavra-passe.';
+        message = 'Palavra-passe ou dados de acesso inválidos. Esqueceu-se da sua senha? Pode recuperá-la de forma rápida ou usar o "Modo Rápido" abaixo de testes para se autenticar sem senha.';
       } else if (message.includes('Email not confirmed')) {
-        message = 'Por favor, confirme o seu email antes de entrar.';
+        message = 'Por favor, confirme o seu e-mail antes de entrar.\n\n💡 Dica: Se o e-mail não chegar ou se estiver apenas a testar, use qualquer um dos botões do "Modo Rápido (Bypass)" abaixo para aceder instantaneamente!';
       } else if (message.includes('Forbidden use of secret API key')) {
         message = 'Erro de Configuração: Foi detectado o uso de uma chave secreta no navegador. Por favor, use a chave "anon" (ou public) nas configurações do projeto.';
       }
       setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const emailInput = formData.email.trim();
+    if (!emailInput || !emailInput.includes('@')) {
+      setError('Por favor, introduza um endereço de e-mail válido.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Check if email database profile row exists
+      try {
+        const { data: matchedProfiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('email', emailInput.toLowerCase())
+          .limit(1);
+
+        if (!profileError && (!matchedProfiles || matchedProfiles.length === 0)) {
+          throw new Error('E-mail não registado no Moz Proservices. Por favor, verifique se digitou corretamente ou registe uma nova conta se for o seu primeiro acesso.');
+        }
+      } catch (profileSearchErr: any) {
+        console.warn('Silent fallback on checking registered profile email:', profileSearchErr);
+        if (profileSearchErr.message && profileSearchErr.message.includes('não registado')) {
+          throw profileSearchErr;
+        }
+      }
+
+      const redirectTo = `${window.location.origin}/auth/callback?type=recovery`;
+      
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(emailInput, {
+        redirectTo
+      });
+
+      if (resetError) throw resetError;
+
+      setSuccessMessage('Um link de recuperação seguro foi enviado para o e-mail: ' + emailInput + '.\n\nPor favor, verifique a sua caixa de entrada (incluindo SPAM) e clique no link para redefinir o seu acesso.');
+    } catch (err: any) {
+      console.error('Password Recovery Error:', err);
+      setError(err.message || 'Ocorreu um erro ao enviar o link de redefinição.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const newPass = formData.password;
+    if (newPass.length < 6) {
+      setError('A nova palavra-passe tem de ter pelo menos 6 caracteres.');
+      setLoading(false);
+      return;
+    }
+
+    if (newPass !== confirmPassword) {
+      setError('As palavras-passe introduzidas não correspondem.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPass
+      });
+
+      if (updateError) throw updateError;
+
+      setSuccessMessage('A sua palavra-passe foi alterada com sucesso!');
+      
+      setTimeout(() => {
+        navigate('/');
+      }, 3000);
+    } catch (err: any) {
+      console.error('Password Update Error:', err);
+      setError(err.message || 'Não foi possível atualizar a sua palavra-passe. Certifique-se de que o link de recuperação de e-mail ainda é válido ou tente pedir um novo link.');
     } finally {
       setLoading(false);
     }
@@ -188,7 +318,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       try {
         const { error } = await supabase
           .from('profiles')
-          .insert([profileData]);
+          .upsert(profileData);
         profileError = error;
       } catch (fetchErr: any) {
         console.error('Falha de rede ao tentar inserir perfil secundário:', fetchErr);
@@ -218,10 +348,10 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
         <div className="bg-navy p-8 text-white relative overflow-hidden">
           <div className="relative z-10">
             <h1 className="text-3xl font-black uppercase tracking-tighter">
-              {mode === 'login' ? 'Bem-vindo de volta' : 'Criar Conta'}
+              {mode === 'login' ? 'Bem-vindo de volta' : mode === 'signup' ? 'Criar Conta' : mode === 'recover' ? 'Recuperar Conta' : 'Nova Palavra-passe'}
             </h1>
-            <p className="text-slate-400 text-sm mt-1">
-              {mode === 'login' ? 'Entre na sua conta Mozproservices' : 'Junte-se ao ecossistema Mozproservices'}
+            <p className="text-slate-400 text-sm mt-1 animate-fade-in">
+              {mode === 'login' ? 'Entre na sua conta Moz Proservices' : mode === 'signup' ? 'Junte-se ao ecossistema Moz Proservices' : mode === 'recover' ? 'Recupere o acesso à sua conta' : 'Defina os novos dados de acesso no formulário'}
             </p>
           </div>
           <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-orange/10 rounded-full blur-3xl" />
@@ -229,8 +359,22 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
 
         <div className="p-8">
           {error && (
-            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-sm font-bold border border-red-100">
-              {error}
+            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl text-xs font-bold border border-red-100 whitespace-pre-wrap text-left leading-relaxed">
+              <span>{error}</span>
+              {error.includes('Esqueceu-se') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    setSuccessMessage(null);
+                    setMode('recover');
+                    navigate('/auth?mode=recover');
+                  }}
+                  className="block mt-2 text-xs font-black uppercase tracking-wider text-orange hover:underline decoration-2"
+                >
+                  👉 Recuperar Palavra-passe Agora
+                </button>
+              )}
             </div>
           )}
 
@@ -266,6 +410,20 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
                         value={formData.password}
                         onChange={e => setFormData({...formData, password: e.target.value})}
                       />
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          setSuccessMessage(null);
+                          setMode('recover');
+                          navigate('/auth?mode=recover');
+                        }}
+                        className="text-xs font-bold text-orange hover:underline uppercase tracking-wider transition-colors"
+                      >
+                        Esqueci-me da senha?
+                      </button>
                     </div>
                   </div>
                   <button 
@@ -667,6 +825,152 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
                     </button>
                   </p>
                 </div>
+              </motion.div>
+            )}
+
+            {mode === 'recover' && (
+              <motion.div
+                key="recover"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                {successMessage ? (
+                  <div className="space-y-6 text-center py-6">
+                    <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto shadow-sm border border-green-100">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-black text-navy uppercase tracking-tight">E-mail Enviado!</h3>
+                      <p className="text-slate-500 text-xs font-semibold leading-relaxed px-4 whitespace-pre-wrap">
+                        {successMessage}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSuccessMessage(null);
+                        setError(null);
+                        setMode('login');
+                        navigate('/auth?mode=login');
+                      }}
+                      className="w-full py-4 bg-navy text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-navy/90 transition-all shadow-lg"
+                    >
+                      Voltar para o Login
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handlePasswordRecovery} className="space-y-4">
+                    <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                      Introduza o endereço de e-mail associado à sua conta. Enviaremos um link de início de sessão seguro para que possa escolher uma nova palavra-passe imediatamente.
+                    </p>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <input 
+                        required
+                        type="email" 
+                        placeholder="Insira o seu e-mail"
+                        className="w-full bg-slate-50 border-none rounded-2xl px-12 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                        value={formData.email}
+                        onChange={e => setFormData({...formData, email: e.target.value})}
+                      />
+                    </div>
+                    <button 
+                      disabled={loading}
+                      className="w-full py-4 bg-navy text-white rounded-2xl font-black uppercase tracking-widest hover:bg-navy/90 transition-colors shadow-lg shadow-navy/20 disabled:opacity-50"
+                    >
+                      {loading ? 'A enviar link...' : 'Enviar Link de Recuperação'}
+                    </button>
+                    <div className="text-center pt-2">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          setMode('login');
+                          navigate('/auth?mode=login');
+                        }}
+                        className="text-xs font-black text-slate-400 hover:text-navy uppercase tracking-widest transition-colors"
+                      >
+                        Cancelar e Voltar ao login
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </motion.div>
+            )}
+
+            {mode === 'reset-password' && (
+              <motion.div
+                key="reset-password"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                {successMessage ? (
+                  <div className="space-y-6 text-center py-6">
+                    <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto shadow-sm border border-green-100 animate-bounce">
+                      <CheckCircle2 className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-xl font-black text-navy uppercase tracking-tight">Alterada com Sucesso!</h3>
+                      <p className="text-slate-500 text-xs font-semibold leading-relaxed px-4 whitespace-pre-wrap">
+                        {successMessage}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSuccessMessage(null);
+                        setError(null);
+                        navigate('/');
+                      }}
+                      className="w-full py-4 bg-navy text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-navy/90 transition-all shadow-lg animate-pulse"
+                    >
+                      Aceder Directamente
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handlePasswordUpdate} className="space-y-4">
+                    <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                      Por favor, introduza a sua nova palavra-passe de segurança abaixo. Certifique-se de que escolhe uma combinação robusta (mínimo 6 caracteres).
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <input 
+                          required
+                          type="password" 
+                          placeholder="Nova Palavra-passe"
+                          className="w-full bg-slate-50 border-none rounded-2xl px-12 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                          value={formData.password}
+                          onChange={e => setFormData({...formData, password: e.target.value})}
+                        />
+                      </div>
+                      
+                      <div className="relative">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <input 
+                          required
+                          type="password" 
+                          placeholder="Confirmar Nova Palavra-passe"
+                          className="w-full bg-slate-50 border-none rounded-2xl px-12 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    <button 
+                      disabled={loading}
+                      className="w-full py-4 bg-navy text-white rounded-2xl font-black uppercase tracking-widest hover:bg-navy/90 transition-colors shadow-lg shadow-navy/20 disabled:opacity-50"
+                    >
+                      {loading ? 'A atualizar...' : 'Atualizar Palavra-passe'}
+                    </button>
+                  </form>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

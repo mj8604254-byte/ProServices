@@ -35,6 +35,12 @@ export default function AuthCallback() {
         return;
       }
 
+      const type = params.get('type') || hashParams.get('type');
+      if (type === 'recovery') {
+        navigate('/auth?mode=reset-password');
+        return;
+      }
+
       const { data: sessionData } = await supabase.auth.getSession();
       
       if (sessionData?.session) {
