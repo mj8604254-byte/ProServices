@@ -2,9 +2,11 @@ import React from 'react';
 import { Truck, ShoppingBag, Wrench, Utensils, BookOpen, ShieldCheck, Zap, Clock, Headphones } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export function Landing({ onGuestAccess }: { onGuestAccess: () => void }) {
   const navigate = useNavigate();
+  const { hasConnectionIssue } = useAuth();
 
   const handleAuth = (mode: 'login' | 'signup') => {
     navigate(`/auth?mode=${mode}`);
@@ -21,6 +23,11 @@ export function Landing({ onGuestAccess }: { onGuestAccess: () => void }) {
 
   return (
     <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+      {hasConnectionIssue && (
+        <div className="bg-amber-600 text-white font-sans font-bold text-xs py-3.5 px-4 text-center flex items-center justify-center gap-2 relative z-50">
+          <span>⚠️ <strong>Atenção:</strong> Ligação à base de dados lenta ou em manutenção. Por favor, clique em <strong>"Explorar como Visitante"</strong> abaixo para utilizar a app sem restrições.</span>
+        </div>
+      )}
       {/* Hero Section */}
       <section className="relative pt-20 pb-32 px-4 bg-navy text-white overflow-hidden">
         <div className="max-w-7xl mx-auto flex flex-col items-center text-center relative z-10">

@@ -8,6 +8,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
+  hasConnectionIssue: boolean;
   loginAsDemo: (role: UserRole) => void;
   logout: () => Promise<void>;
 }
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   isAdmin: false,
+  hasConnectionIssue: false,
   loginAsDemo: () => {},
   logout: async () => {},
 });
@@ -27,6 +29,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasConnectionIssue, setHasConnectionIssue] = useState(false);
+  const safetyTimeoutRef = React.useRef<any>(null);
+
+  const clearSafetyTimeout = () => {
+    if (safetyTimeoutRef.current) {
+      clearTimeout(safetyTimeoutRef.current);
+      safetyTimeoutRef.current = null;
+    }
+  };
 
   // Define loginAsDemo
   const loginAsDemo = (role: UserRole) => {
@@ -88,6 +99,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // Set a safety timeout of 4.5 seconds to prevent infinite "white screen / spinner" loading states
+    // if Supabase is offline, paused, or the network connection is slow.
+    safetyTimeoutRef.current = setTimeout(() => {
+      console.warn('Authentication status check timed out (Supabase is taking too long to respond).');
+      setHasConnectionIssue(true);
+      setLoading(false);
+    }, 4500);
+
     // Initial session check
     const checkSession = async () => {
       try {
@@ -109,10 +128,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await fetchProfile(session.user.id, session.user.email);
         } else {
           setLoading(false);
+          clearSafetyTimeout();
         }
       } catch (err: any) {
         console.warn('Session check failed or aborted:', err);
         setLoading(false);
+        clearSafetyTimeout();
       }
     };
 
@@ -127,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setProfile(null);
           setLoading(false);
+          clearSafetyTimeout();
         }
         return;
       }
@@ -137,11 +159,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setProfile(null);
         setLoading(false);
+        clearSafetyTimeout();
       }
     });
 
     return () => {
       subscription.unsubscribe();
+      clearSafetyTimeout();
     };
   }, []);
 
@@ -247,13 +271,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(null);
     } finally {
       setLoading(false);
+      clearSafetyTimeout();
     }
   };
 
   const isAdmin = profile?.role === UserRole.ADMIN;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin, loginAsDemo, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin, hasConnectionIssue, loginAsDemo, logout }}>
       {children}
     </AuthContext.Provider>
   );

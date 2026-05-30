@@ -23,7 +23,7 @@ import { ProductModeration } from './pages/Admin/ProductModeration';
 import { FinanceDashboard } from './pages/Admin/FinanceDashboard';
 
 function Layout() {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, hasConnectionIssue } = useAuth();
   const [guestMode, setGuestMode] = React.useState(() => sessionStorage.getItem('guest_mode') === 'true');
 
   if (loading) {
@@ -55,6 +55,11 @@ function Layout() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <TopNav />
+      {hasConnectionIssue && (
+        <div className="bg-amber-600 text-white font-sans font-bold text-xs py-2.5 px-4 text-center flex items-center justify-center gap-2 relative z-50">
+          <span>⚠️ <strong>Modo Offline Ativo:</strong> Ligação à base de dados lenta ou em manutenção. Pode navegar livremente em modo de demonstração.</span>
+        </div>
+      )}
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 sm:py-8 mb-20 sm:mb-0">
         <Outlet />
       </main>

@@ -118,7 +118,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
         const identifier = formData.email.trim();
         const isEmail = identifier.includes('@');
         
-        let finalEmail = identifier;
+        let finalEmail = isEmail ? identifier.toLowerCase() : identifier;
         let isResolved = isEmail;
 
         if (!isEmail) {
@@ -140,7 +140,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
               });
 
               if (matchedRow && matchedRow.email) {
-                finalEmail = matchedRow.email;
+                finalEmail = matchedRow.email.toLowerCase();
                 isResolved = true;
               }
             }
@@ -149,16 +149,15 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
           }
         }
 
-        const loginPayload = isResolved 
-          ? { email: finalEmail, password: formData.password }
-          : { phone: identifier, password: formData.password };
+        if (!isResolved) {
+          throw new Error('E-mail, Telefone ou Nome de utilizador não encontrado. Por favor, verifique se digitou corretamente ou registe uma nova conta se for o seu primeiro acesso.');
+        }
+
+        const loginPayload = { email: finalEmail, password: formData.password };
 
         const { error } = await supabase.auth.signInWithPassword(loginPayload);
         
         if (error) {
-          if (!isResolved && error.message.includes('email')) {
-            throw new Error('Formato inválido ou correspondência de conta não encontrada. Por favor use um e-mail válido.');
-          }
           throw error;
         }
         navigate('/');
@@ -168,8 +167,8 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       }
     } catch (err: any) {
       console.error('Email Auth Error:', err);
-      let message = err.message;
-      if (message === 'Invalid login credentials') {
+      let message = err.message || '';
+      if (message === 'Invalid login credentials' || message.includes('Invalid login credentials') || message === 'invalid_credentials') {
         message = 'Palavra-passe ou dados de acesso inválidos. Esqueceu-se da sua senha? Pode recuperá-la de forma rápida ou usar o "Modo Rápido" abaixo de testes para se autenticar sem senha.';
       } else if (message.includes('Email not confirmed')) {
         message = 'Por favor, confirme o seu e-mail antes de entrar.\n\n💡 Dica: Se o e-mail não chegar ou se estiver apenas a testar, use qualquer um dos botões do "Modo Rápido (Bypass)" abaixo para aceder instantaneamente!';

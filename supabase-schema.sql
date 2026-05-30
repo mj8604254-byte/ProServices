@@ -300,3 +300,60 @@ CREATE POLICY "Criar bilhete de suporte"
     ON public.support_tickets FOR INSERT 
     TO authenticated 
     WITH CHECK (auth.uid() = user_id);
+
+-- --------------------------------------------------------------------
+-- 5. TABELA DE AVALIAÇÕES E REVISÕES (RATINGS & REVIEWS)
+-- --------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS public.reviews (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
+    customer_id UUID REFERENCES public.profiles(uid) ON DELETE SET NULL,
+    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    service_id UUID REFERENCES public.services(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT one_target_check CHECK (
+        (product_id IS NOT NULL AND service_id IS NULL) OR 
+        (service_id IS NOT NULL AND product_id IS NULL)
+    )
+);
+
+-- Ativar RLS em reviews
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Avaliações são de visualização pública" 
+    ON public.reviews FOR SELECT 
+    USING (true);
+
+CREATE POLICY "Clientes autenticados podem criar as suas avaliações" 
+    ON public.reviews FOR INSERT 
+    TO authenticated 
+    WITH CHECK (auth.uid() = customer_id);
+
+-- Função de gatilho para recalcular de forma automatizada o rating médio e número total de reviews
+CREATE OR REPLACE FUNCTION public.recalculate_rating_on_review()
+RETURNS trigger AS $$
+BEGIN
+    IF NEW.product_id IS NOT NULL THEN
+        UPDATE public.products
+        SET 
+            rating = (SELECT ROUND(coalesce(avg(rating), 5.0), 2) FROM public.reviews WHERE product_id = NEW.product_id),
+            reviews_count = (SELECT count(*) FROM public.reviews WHERE product_id = NEW.product_id)
+        WHERE id = NEW.product_id;
+    ELSIF NEW.service_id IS NOT NULL THEN
+        UPDATE public.services
+        SET 
+            rating = (SELECT ROUND(coalesce(avg(rating), 5.0), 2) FROM public.reviews WHERE service_id = NEW.service_id),
+            reviews_count = (SELECT count(*) FROM public.reviews WHERE service_id = NEW.service_id)
+        WHERE id = NEW.service_id;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_review_added
+    AFTER INSERT ON public.reviews
+    FOR EACH ROW EXECUTE FUNCTION public.recalculate_rating_on_review();
+

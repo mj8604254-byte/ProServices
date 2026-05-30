@@ -141,3 +141,15 @@ export interface Order {
   deliveryAddress: string;
   location?: { lat: number; lng: number };
 }
+
+export interface Review {
+  id?: string;
+  order_id: string;
+  customer_id: string;
+  product_id?: string;
+  service_id?: string;
+  rating: number;
+  comment?: string;
+  created_at?: string;
+}
+
