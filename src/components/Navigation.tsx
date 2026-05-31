@@ -81,26 +81,26 @@ export function TopNav() {
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   className="absolute top-16 left-0 w-[480px] bg-white rounded-[32px] shadow-2xl border border-slate-100 p-8 z-50 origin-top-left"
                 >
-                   <div className="grid grid-cols-2 gap-8">
+                  <div className="grid grid-cols-2 gap-8">
                     {/* Products & Food */}
                     <div className="space-y-8">
                       <div>
-                        <h4 className="flex items-center gap-2 text-[10px] font-black text-orange uppercase tracking-[0.2em] mb-4">
-                          <ShoppingBag className="w-4 h-4" /> Itens Físicos
+                        <h4 className="flex items-center gap-2 text-[10px] font-black text-navy uppercase tracking-[0.2em] mb-4 border-b border-slate-100 pb-2">
+                          <ShoppingBag className="w-4 h-4 text-orange" /> Lojas & Produtos
                         </h4>
-                        <div className="grid gap-2">
-                          {CATEGORIES.products.slice(0, 4).map(cat => (
-                            <Link key={cat} to={`/products?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-navy transition-colors">{cat}</Link>
+                        <div className="grid gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                          {CATEGORIES.products.map(cat => (
+                            <Link key={cat} to={`/products?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-orange transition-colors">{cat}</Link>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <h4 className="flex items-center gap-2 text-[10px] font-black text-orange uppercase tracking-[0.2em] mb-4">
-                          <Utensils className="w-4 h-4" /> Restauração
+                        <h4 className="flex items-center gap-2 text-[10px] font-black text-navy uppercase tracking-[0.2em] mb-4 border-b border-slate-100 pb-2 border-dashed">
+                          <Utensils className="w-4 h-4 text-orange" /> iFood & Delivery
                         </h4>
-                        <div className="grid gap-2">
-                          {CATEGORIES.ifood.slice(0, 3).map(cat => (
-                            <Link key={cat} to={`/ifood?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-navy transition-colors">{cat}</Link>
+                        <div className="grid gap-2 max-h-44 overflow-y-auto pr-2 custom-scrollbar">
+                          {CATEGORIES.ifood.map(cat => (
+                            <Link key={cat} to={`/ifood?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-orange transition-colors">{cat}</Link>
                           ))}
                         </div>
                       </div>
@@ -108,27 +108,27 @@ export function TopNav() {
                     {/* Services & Info */}
                     <div className="space-y-8">
                       <div>
-                        <h4 className="flex items-center gap-2 text-[10px] font-black text-orange uppercase tracking-[0.2em] mb-4">
-                          <Wrench className="w-4 h-4" /> Qualificação
+                        <h4 className="flex items-center gap-2 text-[10px] font-black text-navy uppercase tracking-[0.2em] mb-4 border-b border-slate-100 pb-2">
+                          <Wrench className="w-4 h-4 text-orange" /> Serviços & Profissionais
                         </h4>
-                        <div className="grid gap-2">
-                          {CATEGORIES.services.slice(0, 4).map(cat => (
-                            <Link key={cat} to={`/services?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-navy transition-colors">{cat}</Link>
+                        <div className="grid gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                          {CATEGORIES.services.map(cat => (
+                            <Link key={cat} to={`/services?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-orange transition-colors">{cat}</Link>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <h4 className="flex items-center gap-2 text-[10px] font-black text-orange uppercase tracking-[0.2em] mb-4">
-                          <BookOpen className="w-4 h-4" /> Digital
+                        <h4 className="flex items-center gap-2 text-[10px] font-black text-navy uppercase tracking-[0.2em] mb-4 border-b border-slate-100 pb-2 border-dashed">
+                          <BookOpen className="w-4 h-4 text-orange" /> Infoprodutos & Cursos
                         </h4>
-                        <div className="grid gap-2">
-                          {CATEGORIES.infoproducts.slice(0, 3).map(cat => (
-                            <Link key={cat} to={`/infoproducts?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-navy transition-colors">{cat}</Link>
+                        <div className="grid gap-2 max-h-44 overflow-y-auto pr-2 custom-scrollbar">
+                          {CATEGORIES.infoproducts.map(cat => (
+                            <Link key={cat} to={`/infoproducts?category=${cat}`} onClick={() => setIsCategoriesOpen(false)} className="text-xs font-bold text-slate-500 hover:text-orange transition-colors">{cat}</Link>
                           ))}
                         </div>
                       </div>
                     </div>
-                   </div>
+                  </div>
                    
                    <div className="mt-10 pt-6 border-t border-slate-50 flex items-center justify-between">
                      <Link to="/products" onClick={() => setIsCategoriesOpen(false)} className="px-6 py-3 bg-navy text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange transition-all">Ver Todo o Catálogo</Link>

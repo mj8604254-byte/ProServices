@@ -10,7 +10,7 @@ export const THEME = {
 };
 
 export const CATEGORIES = {
-  products: ['Alimentação', 'Tecnologia', 'Moda', 'Saúde', 'Construção', 'Casa', 'Agricultura'],
+  products: ['Tecnologia', 'Moda', 'Saúde', 'Construção', 'Casa', 'Agricultura'],
   services: ['Reparações', 'Limpeza', 'Transporte', 'Serviços Digitais', 'Educação', 'Saúde e Bem-estar'],
   ifood: ['Restaurantes', 'Fast Food', 'Bebidas', 'Padarias', 'Supermercados', 'Comida Tradicional'],
   infoproducts: ['Cursos', 'E-books', 'Templates', 'Mentorias', 'Softwares', 'Conteúdos Exclusivos', 'Ferramentas Digitais'],

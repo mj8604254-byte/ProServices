@@ -9,7 +9,15 @@ interface AuthContextType {
   loading: boolean;
   isAdmin: boolean;
   hasConnectionIssue: boolean;
-  loginAsDemo: (role: UserRole) => void;
+  loginAsDemo: (role: UserRole, customData?: {
+    email?: string;
+    name?: string;
+    phone?: string;
+    businessName?: string;
+    nuit?: string;
+    vehicleType?: string;
+    licensePlate?: string;
+  }) => void;
   logout: () => Promise<void>;
 }
 
@@ -60,21 +68,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Define loginAsDemo
-  const loginAsDemo = (role: UserRole) => {
+  const loginAsDemo = (role: UserRole, customData?: {
+    email?: string;
+    name?: string;
+    phone?: string;
+    businessName?: string;
+    nuit?: string;
+    vehicleType?: string;
+    licensePlate?: string;
+  }) => {
     sessionStorage.setItem('demo_user_role', role);
     sessionStorage.setItem('guest_mode', 'true');
+    if (customData) {
+      if (customData.email) sessionStorage.setItem('demo_user_email', customData.email);
+      if (customData.name) sessionStorage.setItem('demo_user_name', customData.name);
+      if (customData.phone) sessionStorage.setItem('demo_user_phone', customData.phone);
+      if (customData.businessName) sessionStorage.setItem('demo_user_business_name', customData.businessName);
+      if (customData.nuit) sessionStorage.setItem('demo_user_nuit', customData.nuit);
+      if (customData.vehicleType) sessionStorage.setItem('demo_user_vehicle_type', customData.vehicleType);
+      if (customData.licensePlate) sessionStorage.setItem('demo_user_license_plate', customData.licensePlate);
+    }
+    
+    const email = customData?.email || sessionStorage.getItem('demo_user_email') || `demo_${role}@mozproservices.com`;
+    const name = customData?.name || sessionStorage.getItem('demo_user_name') || `Teste ${role.charAt(0).toUpperCase() + role.slice(1).replace('_', ' ')}`;
+    const phone = customData?.phone || sessionStorage.getItem('demo_user_phone') || '';
+    const businessName = customData?.businessName || sessionStorage.getItem('demo_user_business_name') || '';
+    const nuit = customData?.nuit || sessionStorage.getItem('demo_user_nuit') || '';
+    const vehicleType = customData?.vehicleType || sessionStorage.getItem('demo_user_vehicle_type') || '';
+    const licensePlate = customData?.licensePlate || sessionStorage.getItem('demo_user_license_plate') || '';
+
     const mockUser: any = {
       id: `demo_${role}_id`,
-      email: `demo_${role}@mozproservices.com`,
+      email: email,
       user_metadata: {
-        full_name: `Visitante ${role.toUpperCase().replace('_', ' ')}`
+        full_name: name
       }
     };
     const mockProfile: UserProfile = {
       uid: `demo_${role}_id`,
-      email: `demo_${role}@mozproservices.com`,
-      displayName: `Teste ${role.charAt(0).toUpperCase() + role.slice(1).replace('_', ' ')}`,
+      email: email,
+      displayName: name,
       role: role,
+      phoneNumber: phone,
+      businessName: businessName,
+      vehicleType: vehicleType,
+      licensePlate: licensePlate,
       isVerified: true,
       onboardingCompleted: true,
       createdAt: new Date().toISOString(),
@@ -88,6 +126,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     sessionStorage.removeItem('demo_user_role');
     sessionStorage.removeItem('guest_mode');
+    sessionStorage.removeItem('demo_user_email');
+    sessionStorage.removeItem('demo_user_name');
+    sessionStorage.removeItem('demo_user_phone');
+    sessionStorage.removeItem('demo_user_business_name');
+    sessionStorage.removeItem('demo_user_nuit');
+    sessionStorage.removeItem('demo_user_vehicle_type');
+    sessionStorage.removeItem('demo_user_license_plate');
     setUser(null);
     setProfile(null);
     await supabase.auth.signOut();
@@ -97,18 +142,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check if there is a active demo mode session
     const demoRole = sessionStorage.getItem('demo_user_role') as UserRole | null;
     if (demoRole) {
+      const email = sessionStorage.getItem('demo_user_email') || `demo_${demoRole}@mozproservices.com`;
+      const name = sessionStorage.getItem('demo_user_name') || `Teste ${demoRole.charAt(0).toUpperCase() + demoRole.slice(1).replace('_', ' ')}`;
+      const phone = sessionStorage.getItem('demo_user_phone') || '';
+      const businessName = sessionStorage.getItem('demo_user_business_name') || '';
+      const nuit = sessionStorage.getItem('demo_user_nuit') || '';
+      const vehicleType = sessionStorage.getItem('demo_user_vehicle_type') || '';
+      const licensePlate = sessionStorage.getItem('demo_user_license_plate') || '';
+
       const mockUser: any = {
         id: `demo_${demoRole}_id`,
-        email: `demo_${demoRole}@mozproservices.com`,
+        email: email,
         user_metadata: {
-          full_name: `Visitante ${demoRole.toUpperCase().replace('_', ' ')}`
+          full_name: name
         }
       };
       const mockProfile: UserProfile = {
         uid: `demo_${demoRole}_id`,
-        email: `demo_${demoRole}@mozproservices.com`,
-        displayName: `Teste ${demoRole.charAt(0).toUpperCase() + demoRole.slice(1).replace('_', ' ')}`,
+        email: email,
+        displayName: name,
         role: demoRole,
+        phoneNumber: phone,
+        businessName: businessName,
+        vehicleType: vehicleType,
+        licensePlate: licensePlate,
         isVerified: true,
         onboardingCompleted: true,
         createdAt: new Date().toISOString(),
@@ -119,13 +176,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    // Set a safety timeout of 4.5 seconds to prevent infinite "white screen / spinner" loading states
+    // Set a safety timeout of 15 seconds to prevent infinite "white screen / spinner" loading states
     // if Supabase is offline, paused, or the network connection is slow.
     safetyTimeoutRef.current = setTimeout(() => {
       console.warn('Authentication status check timed out (Supabase is taking too long to respond).');
       setHasConnectionIssue(true);
       setLoading(false);
-    }, 4500);
+    }, 15000);
 
     // Initial session check
     const checkSession = async () => {
@@ -146,7 +203,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setUser(session?.user ?? null);
         if (session?.user) {
-          await fetchProfile(session.user.id, session.user.email);
+          await fetchProfile(session.user.id, session.user.email, session.user.user_metadata);
         } else {
           setLoading(false);
           clearSafetyTimeout();
@@ -187,7 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchProfile(session.user.id, session.user.email);
+        await fetchProfile(session.user.id, session.user.email, session.user.user_metadata);
       } else {
         setProfile(null);
         setLoading(false);
@@ -201,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const fetchProfile = async (uid: string, email?: string) => {
+  const fetchProfile = async (uid: string, email?: string, userMetadata: any = {}) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -211,72 +268,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         if (error.code === 'PGRST116') {
-          // No profile found in database
-          // Checks if there are pending registration details stored in localStorage
-          if (email) {
-            const pendingStr = localStorage.getItem(`pending_profile_${email.toLowerCase()}`);
-            if (pendingStr) {
-              try {
-                const pendingData = JSON.parse(pendingStr);
-                const profileData = {
-                  uid: uid,
-                  email: email,
-                  display_name: pendingData.name || pendingData.display_name || email.split('@')[0],
-                  role: pendingData.role,
-                  phone_number: pendingData.phone || pendingData.phone_number || '',
-                  business_name: pendingData.businessName || pendingData.business_name || '',
-                  nuit: pendingData.nuit || '',
-                  vehicle_type: pendingData.vehicleType || pendingData.vehicle_type || '',
-                  license_plate: pendingData.licensePlate || pendingData.license_plate || '',
-                  onboarding_completed: false,
-                  is_verified: false,
-                  created_at: new Date().toISOString(),
-                };
+          // No profile found in database.
+          // Directly create it using metadata from supabase auth user (the only source of truth!)
+          const rawEmail = email || userMetadata?.email || '';
+          const profileData = {
+            uid: uid,
+            email: rawEmail,
+            display_name: userMetadata?.full_name || userMetadata?.display_name || rawEmail.split('@')[0],
+            role: userMetadata?.role || 'customer',
+            phone_number: userMetadata?.phone || userMetadata?.phone_number || '',
+            business_name: userMetadata?.business_name || userMetadata?.businessName || '',
+            nuit: userMetadata?.nuit || '',
+            vehicle_type: userMetadata?.vehicle_type || userMetadata?.vehicleType || '',
+            license_plate: userMetadata?.license_plate || userMetadata?.licensePlate || '',
+            onboarding_completed: true,
+            is_verified: false,
+            created_at: new Date().toISOString()
+          };
 
-                let newProfile = null;
-                let insertError = null;
-                try {
-                  const { data, error } = await supabase
-                    .from('profiles')
-                    .upsert(profileData, { onConflict: 'uid' })
-                    .select()
-                    .single();
-                  newProfile = data;
-                  insertError = error;
-                } catch (fetchErr: any) {
-                  console.error('Falha de rede ao tentar criar o perfil no Supabase:', fetchErr);
-                  insertError = { 
-                    message: fetchErr.message || 'Falha de rede (TypeError: Failed to fetch). Por favor, certifique-se de que a base de dados SQL foi criada no Supabase.',
-                    details: 'O erro pode ocorrer se as tabelas ainda não existirem ou por restrições CORS.'
-                  };
-                }
+          const { data: insertedData, error: insertError } = await supabase
+            .from('profiles')
+            .upsert(profileData, { onConflict: 'uid' })
+            .select()
+            .single();
 
-                if (!insertError && newProfile) {
-                  localStorage.removeItem(`pending_profile_${email.toLowerCase()}`);
-                  const mapped: UserProfile = {
-                    ...newProfile,
-                    displayName: newProfile.display_name,
-                    avatarUrl: newProfile.avatar_url,
-                    phoneNumber: newProfile.phone_number,
-                    businessName: newProfile.business_name,
-                    vehicleType: newProfile.vehicle_type,
-                    licensePlate: newProfile.license_plate,
-                    isVerified: newProfile.is_verified,
-                    onboardingCompleted: newProfile.onboarding_completed,
-                    referralLink: newProfile.referral_link,
-                    createdAt: newProfile.created_at
-                  };
-                  setProfile(mapped);
-                  return;
-                } else {
-                  console.error('Erro ao inserir perfil pendente:', insertError);
-                }
-              } catch (parseErr) {
-                console.error('Error parsing pending profile info:', parseErr);
-              }
-            }
+          if (!insertError && insertedData) {
+            const mapped: UserProfile = {
+              ...insertedData,
+              displayName: insertedData.display_name,
+              avatarUrl: insertedData.avatar_url,
+              phoneNumber: insertedData.phone_number,
+              businessName: insertedData.business_name,
+              vehicleType: insertedData.vehicle_type,
+              licensePlate: insertedData.license_plate,
+              isVerified: insertedData.is_verified,
+              onboardingCompleted: insertedData.onboarding_completed,
+              referralLink: insertedData.referral_link,
+              createdAt: insertedData.created_at
+            };
+            setProfile(mapped);
+          } else {
+            console.error('Failed to auto-create missing profile in database:', insertError);
+            setProfile(null);
           }
-          setProfile(null);
         } else {
           console.error('Error fetching profile:', error);
           setProfile(null);
