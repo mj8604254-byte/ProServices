@@ -36,7 +36,7 @@ const INTERESTS = [
 ];
 
 export function Onboarding() {
-  const { profile } = useAuth();
+  const { profile, logout } = useAuth();
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -89,7 +89,42 @@ export function Onboarding() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      {/* Brand Header */}
+      <header className="w-full bg-white border-b border-slate-100 py-4 px-6 flex items-center justify-between">
+        <button 
+          id="brand_onboarding_link"
+          type="button"
+          onClick={async () => {
+            if (logout) {
+              await logout();
+            }
+            sessionStorage.removeItem('guest_mode');
+            window.location.href = '/';
+          }}
+          className="flex flex-col -space-y-1 items-start text-left hover:opacity-85 transition-opacity cursor-pointer group"
+        >
+          <span className="font-black text-xl tracking-tighter text-navy uppercase group-hover:text-orange transition-colors">Moz</span>
+          <span className="font-black text-[10px] tracking-[0.2em] text-slate-400 uppercase">ProServices</span>
+        </button>
+        <button
+          id="onboarding_return_button"
+          type="button"
+          onClick={async () => {
+            if (logout) {
+              await logout();
+            }
+            sessionStorage.removeItem('guest_mode');
+            window.location.href = '/';
+          }}
+          className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-orange transition-colors cursor-pointer"
+        >
+          Sair & Voltar
+        </button>
+      </header>
+
+      {/* Main Container */}
+      <div className="flex-1 w-full mx-auto py-11 px-4">
       <div className="max-w-4xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -177,6 +212,7 @@ export function Onboarding() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

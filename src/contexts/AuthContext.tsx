@@ -39,6 +39,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const clearSupabaseTokens = () => {
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('sb-') || key.includes('auth-token') || key.includes('supabase'))) {
+          localStorage.removeItem(key);
+        }
+      }
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('sb-') || key.includes('auth-token') || key.includes('supabase'))) {
+          sessionStorage.removeItem(key);
+        }
+      }
+      supabase.auth.signOut().catch(() => {});
+    } catch (err) {
+      console.warn('Silent note on clearing supabase tokens:', err);
+    }
+  };
+
   // Define loginAsDemo
   const loginAsDemo = (role: UserRole) => {
     sessionStorage.setItem('demo_user_role', role);
@@ -117,10 +137,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             error.message.includes('Refresh Token') || 
             error.message.includes('not found') || 
             error.message.includes('expired') || 
-            error.message.includes('Failed to fetch')
+            error.message.includes('Failed to fetch') ||
+            error.message.includes('invalid')
           )) {
             // Clean up stale session state
-            supabase.auth.signOut().catch(() => {});
+            clearSupabaseTokens();
           }
         }
         setUser(session?.user ?? null);
@@ -132,6 +153,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err: any) {
         console.warn('Session check failed or aborted:', err);
+        const errMsg = err?.message || '';
+        if (
+          errMsg.includes('Refresh Token') || 
+          errMsg.includes('not found') || 
+          errMsg.includes('expired') || 
+          errMsg.includes('invalid')
+        ) {
+          clearSupabaseTokens();
+        }
+        setUser(null);
+        setProfile(null);
         setLoading(false);
         clearSafetyTimeout();
       }

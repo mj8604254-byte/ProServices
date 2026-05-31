@@ -22,7 +22,41 @@ export function Landing({ onGuestAccess }: { onGuestAccess: () => void }) {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden pt-10">
+      {/* Landing Absolute Header */}
+      <header className="absolute top-0 left-0 right-0 z-50 bg-transparent">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <button 
+            id="brand_landing_link"
+            onClick={() => {
+              sessionStorage.removeItem('guest_mode');
+              window.location.href = '/';
+            }} 
+            className="flex flex-col -space-y-1 items-start text-left group cursor-pointer"
+          >
+            <span className="font-black text-xl tracking-tighter text-white uppercase group-hover:text-orange transition-colors">Moz</span>
+            <span className="font-black text-[10px] tracking-[0.2em] text-slate-300 uppercase group-hover:text-white transition-colors">ProServices</span>
+          </button>
+          
+          <div className="flex items-center gap-4">
+            <button 
+              id="landing_nav_login"
+              onClick={() => handleAuth('login')}
+              className="text-white hover:text-orange font-bold text-sm transition-all cursor-pointer"
+            >
+              Entrar
+            </button>
+            <button 
+              id="landing_nav_signup"
+              onClick={() => handleAuth('signup')}
+              className="px-6 py-2.5 bg-orange text-white rounded-xl font-bold text-xs uppercase tracking-wider hover:scale-105 transition-all shadow-md cursor-pointer"
+            >
+              Registar
+            </button>
+          </div>
+        </div>
+      </header>
+
       {hasConnectionIssue && (
         <div className="bg-amber-600 text-white font-sans font-bold text-xs py-3.5 px-4 text-center flex items-center justify-center gap-2 relative z-50">
           <span>⚠️ <strong>Atenção:</strong> Ligação à base de dados lenta ou em manutenção. Por favor, clique em <strong>"Explorar como Visitante"</strong> abaixo para utilizar a app sem restrições.</span>

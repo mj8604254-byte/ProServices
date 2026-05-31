@@ -108,6 +108,15 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
     }
   };
 
+const withTimeout = async <T,>(promise: PromiseLike<T> | Promise<T>, ms = 6000): Promise<T> => {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('SUPABASE_TIMEOUT_OR_PAUSED')), ms)
+    )
+  ]);
+};
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -124,9 +133,9 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
         if (!isEmail) {
           const cleanPhone = identifier.replace(/[\s-+]/g, '');
           try {
-            const { data: profileRows } = await supabase
+            const { data: profileRows } = await withTimeout(supabase
               .from('profiles')
-              .select('email, phone_number, display_name');
+              .select('email, phone_number, display_name'));
 
             if (profileRows && profileRows.length > 0) {
               const matchedRow = profileRows.find(row => {
@@ -155,7 +164,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
 
         const loginPayload = { email: finalEmail, password: formData.password };
 
-        const { error } = await supabase.auth.signInWithPassword(loginPayload);
+        const { error } = await withTimeout(supabase.auth.signInWithPassword(loginPayload));
         
         if (error) {
           throw error;
@@ -168,7 +177,14 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
     } catch (err: any) {
       console.error('Email Auth Error:', err);
       let message = err.message || '';
-      if (message === 'Invalid login credentials' || message.includes('Invalid login credentials') || message === 'invalid_credentials') {
+      if (
+        message === 'SUPABASE_TIMEOUT_OR_PAUSED' || 
+        message.toLowerCase().includes('failed to fetch') || 
+        message.toLowerCase().includes('network') ||
+        message.toLowerCase().includes('typeerror')
+      ) {
+        message = '⚠️ BASE DE DADOS DO SUPABASE INDISPONÍVEL OU PAUSADA:\n\nA base de dados de demonstração (kqbzokibwrlkwwljnfyn.supabase.co) parece estar pausada por inatividade no plano gratuito ou inacessível no momento.\n\n👉 COMO RESOLVER ESTE PROBLEMA:\n1. Se é o administrador, aceda à sua conta em https://supabase.com, selecione o projeto "kqbzokibwrlkwwljnfyn" e clique em "Restore Project" / "Resume Project" (reativação imediata em 1 minuto).\n2. Adicione os seus próprios dados de ligação no menu de Configurações (Settings) do AI Studio.\n\n💡 SOLUÇÃO IMEDIATA SEM ESPERAR:\nClique no botão "Aceder como Visitante" (acima) ou escolha qualquer um dos botões do "Modo Rápido (Bypass)" listados abaixo para testar a app com dados de demonstração salvos localmente!';
+      } else if (message === 'Invalid login credentials' || message.includes('Invalid login credentials') || message === 'invalid_credentials') {
         message = 'Palavra-passe ou dados de acesso inválidos. Esqueceu-se da sua senha? Pode recuperá-la de forma rápida ou usar o "Modo Rápido" abaixo de testes para se autenticar sem senha.';
       } else if (message.includes('Email not confirmed')) {
         message = 'Por favor, confirme o seu e-mail antes de entrar.\n\n💡 Dica: Se o e-mail não chegar ou se estiver apenas a testar, use qualquer um dos botões do "Modo Rápido (Bypass)" abaixo para aceder instantaneamente!';
@@ -261,10 +277,10 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       const name = formData.name.trim();
 
       // 1. Pre-verify if email is already registered in profiles to completely prevent duplicates
-      const { data: existingUser, error: checkError } = await supabase
+      const { data: existingUser, error: checkError } = await withTimeout(supabase
         .from('profiles')
         .select('email')
-        .eq('email', email);
+        .eq('email', email));
 
       if (checkError) {
         console.warn('Silent note on pre-verifying duplicate email:', checkError.message);
@@ -278,7 +294,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       localStorage.setItem(`pending_profile_${email}`, JSON.stringify(formData));
 
       // 2. Create user in Supabase Auth with complete metadata to feed the database trigger
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await withTimeout(supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -292,7 +308,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
             license_plate: formData.licensePlate
           }
         }
-      });
+      }));
 
       if (signUpError) throw signUpError;
       
@@ -301,7 +317,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       // 3. Upsert Public Profiles with full structural data (prevents primary key conflicts with trigger handle_new_auth_user)
       let profileError = null;
       try {
-        const { error } = await supabase
+        const { error } = await withTimeout(supabase
           .from('profiles')
           .upsert({
             uid: data.user.id,
@@ -315,7 +331,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
             license_plate: formData.licensePlate,
             onboarding_completed: true, // Marked true since registration is completed
             is_verified: false
-          }, { onConflict: 'uid' });
+          }, { onConflict: 'uid' }));
         profileError = error;
       } catch (fetchErr: any) {
         console.error('Falha de rede ao tentar atualizar perfil secundário:', fetchErr);
@@ -335,18 +351,57 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
       // If no immediate session, email verification is required or activation is in progress
       setStep('verification');
     } catch (err: any) {
-      setError(err.message);
+      console.error('Signup Error:', err);
+      let message = err.message || '';
+      if (
+        message === 'SUPABASE_TIMEOUT_OR_PAUSED' || 
+        message.toLowerCase().includes('failed to fetch') || 
+        message.toLowerCase().includes('network') ||
+        message.toLowerCase().includes('typeerror')
+      ) {
+        message = '⚠️ BASE DE DADOS DO SUPABASE INDISPONÍVEL OU PAUSADA:\n\nA base de dados de demonstração (kqbzokibwrlkwwljnfyn.supabase.co) parece estar pausada por inatividade no plano gratuito ou inacessível no momento.\n\n👉 COMO RESOLVER ESTE PROBLEMA:\n1. Se é o administrador, aceda à sua barra de controlo em https://supabase.com, selecione o seu projeto e clique para Reativar ("Restore" / "Resume Project").\n2. Adicione os seus próprios dados de ligação no menu de Configurações (Settings) do AI Studio.\n\n💡 SOLUÇÃO IMEDIATA SEM ESPERAR:\nVolte para a tela anterior e use o "Aceder como Visitante" ou use qualquer um dos perfis do "Modo Rápido (Bypass)" de teste!';
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <motion.div 
-        layout
-        className="w-full max-w-lg bg-white rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden"
-      >
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      {/* Brand Header */}
+      <header className="w-full bg-white border-b border-slate-100 py-4 px-6 flex items-center justify-between">
+        <button 
+          id="brand_auth_link"
+          type="button"
+          onClick={() => {
+            sessionStorage.removeItem('guest_mode');
+            window.location.href = '/';
+          }}
+          className="flex flex-col -space-y-1 items-start text-left hover:opacity-85 transition-opacity cursor-pointer group"
+        >
+          <span className="font-black text-xl tracking-tighter text-navy uppercase group-hover:text-orange transition-colors">Moz</span>
+          <span className="font-black text-[10px] tracking-[0.2em] text-slate-400 uppercase">ProServices</span>
+        </button>
+        <button
+          id="auth_return_button"
+          type="button"
+          onClick={() => {
+            sessionStorage.removeItem('guest_mode');
+            window.location.href = '/';
+          }}
+          className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-orange transition-colors cursor-pointer"
+        >
+          Voltar para o Início
+        </button>
+      </header>
+
+      {/* Main Container */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <motion.div 
+          layout
+          className="w-full max-w-lg bg-white rounded-[40px] shadow-2xl border border-slate-100 overflow-hidden"
+        >
         {/* Header */}
         <div className="bg-navy p-8 text-white relative overflow-hidden">
           <div className="relative z-10">
@@ -979,6 +1034,7 @@ const handleSocialLogin = async (provider: 'google' | 'facebook' | 'apple') => {
           </AnimatePresence>
         </div>
       </motion.div>
+      </div>
     </div>
   );
 }

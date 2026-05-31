@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export function RoleSelection() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [step, setStep] = useState<'selection' | 'form'>('selection');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const navigate = useNavigate();
@@ -84,7 +84,42 @@ export function RoleSelection() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4">
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-between">
+      {/* Brand Header */}
+      <header className="w-full bg-white border-b border-slate-100 py-4 px-6 flex items-center justify-between">
+        <button 
+          id="brand_role_link"
+          type="button"
+          onClick={async () => {
+            if (logout) {
+              await logout();
+            }
+            sessionStorage.removeItem('guest_mode');
+            window.location.href = '/';
+          }}
+          className="flex flex-col -space-y-1 items-start text-left hover:opacity-85 transition-opacity cursor-pointer group"
+        >
+          <span className="font-black text-xl tracking-tighter text-navy uppercase group-hover:text-orange transition-colors">Moz</span>
+          <span className="font-black text-[10px] tracking-[0.2em] text-slate-400 uppercase">ProServices</span>
+        </button>
+        <button
+          id="role_return_button"
+          type="button"
+          onClick={async () => {
+            if (logout) {
+              await logout();
+            }
+            sessionStorage.removeItem('guest_mode');
+            window.location.href = '/';
+          }}
+          className="text-xs font-black uppercase tracking-widest text-slate-400 hover:text-orange transition-colors cursor-pointer"
+        >
+          Sair & Voltar
+        </button>
+      </header>
+
+      {/* Main Container */}
+      <div className="flex-1 max-w-4xl w-full mx-auto py-12 px-4">
       <AnimatePresence mode="wait">
         {step === 'selection' ? (
           <motion.div
@@ -172,6 +207,7 @@ export function RoleSelection() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 }
