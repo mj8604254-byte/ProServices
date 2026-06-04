@@ -47,11 +47,6 @@ function Layout() {
     return <RoleSelection />;
   }
 
-  // Redirect to Onboarding if not completed (Only for Customers)
-  if (profile && profile.role === UserRole.CUSTOMER && !profile.onboardingCompleted) {
-    return <Onboarding />;
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <TopNav />

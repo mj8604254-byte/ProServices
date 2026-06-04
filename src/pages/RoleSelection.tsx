@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Store, Building2, Truck, Briefcase, ChevronRight, ArrowLeft, Wrench } from 'lucide-react';
+import { User, Store, Building2, Truck, Briefcase, ChevronRight, ArrowLeft, Wrench, AlertCircle } from 'lucide-react';
 import { UserRole } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase, handleSupabaseError } from '../lib/supabase';
@@ -8,9 +8,16 @@ import { useNavigate } from 'react-router-dom';
 
 export function RoleSelection() {
   const { user, logout } = useAuth();
-  const [step, setStep] = useState<'selection' | 'form'>('selection');
+  const [step, setStep] = useState<'selection' | 'question' | 'form'>('selection');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const navigate = useNavigate();
+
+  // Detail states
+  const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
+  const [businessName, setBusinessName] = useState('');
+  const [nuit, setNuit] = useState('');
+  const [vehicleType, setVehicleType] = useState('bicicleta');
+  const [licensePlate, setLicensePlate] = useState('');
 
   const roles = [
     { 
@@ -57,30 +64,68 @@ export function RoleSelection() {
     },
   ];
 
-  const handleRoleSelect = (role: UserRole) => {
+  const handleRoleSelect = async (role: UserRole) => {
     setSelectedRole(role);
-    setStep('form');
+    
+    // Check if extra info is needed for this role
+    const needsInfo = 
+      role === UserRole.SELLER_MICRO || 
+      role === UserRole.SELLER_MACRO || 
+      role === UserRole.SERVICE_PROVIDER || 
+      role === UserRole.DELIVERER;
+
+    if (!needsInfo) {
+      // No extra info needed, log in/save directly!
+      await completeRegistration(role, {});
+    } else {
+      // Question: Ask if user would like to provide details now
+      setStep('question');
+    }
+  };
+
+  const completeRegistration = async (role: UserRole, extraData: any = {}) => {
+    if (!user) return;
+    try {
+      const display_name = fullName.trim() || user.user_metadata?.full_name || user.email?.split('@')[0];
+      const payload: any = {
+        role: role,
+        display_name: display_name,
+        onboarding_completed: true,
+        is_verified: false,
+        updated_at: new Date().toISOString()
+      };
+      
+      if (extraData.businessName) payload.business_name = extraData.businessName;
+      if (extraData.nuit) payload.nuit = extraData.nuit;
+      if (extraData.vehicleType) payload.vehicle_type = extraData.vehicleType;
+      if (extraData.licensePlate) payload.license_plate = extraData.licensePlate;
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          uid: user.id,
+          email: user.email,
+          ...payload
+        }, { onConflict: 'uid' });
+
+      if (error) throw error;
+      
+      // Direct navigation and reload to synchronize contexts
+      window.location.href = '/';
+    } catch (err) {
+      handleSupabaseError(err);
+    }
   };
 
   const handleCompleteRegistration = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedRole) return;
-
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          display_name: user.user_metadata?.full_name || user.email?.split('@')[0],
-          role: selectedRole,
-          is_verified: false,
-        })
-        .eq('uid', user.id);
+    if (!selectedRole) return;
+    
+    const extraData = selectedRole === UserRole.DELIVERER 
+      ? { vehicleType, licensePlate }
+      : { businessName, nuit };
       
-      if (error) throw error;
-      navigate('/');
-    } catch (error) {
-      handleSupabaseError(error);
-    }
+    await completeRegistration(selectedRole, extraData);
   };
 
   return (
@@ -119,15 +164,15 @@ export function RoleSelection() {
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 max-w-4xl w-full mx-auto py-12 px-4">
+      <div className="flex-1 max-w-4xl w-full mx-auto py-12 px-4 flex items-center justify-center">
       <AnimatePresence mode="wait">
-        {step === 'selection' ? (
+        {step === 'selection' && (
           <motion.div
             key="selection"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
-            className="space-y-8"
+            className="space-y-8 w-full max-w-2xl"
           >
             <div className="text-center space-y-2">
               <h1 className="text-3xl font-black text-navy uppercase tracking-tighter">Escolha o seu perfil</h1>
@@ -153,16 +198,54 @@ export function RoleSelection() {
               ))}
             </div>
           </motion.div>
-        ) : (
+        )}
+
+        {step === 'question' && (
+          <motion.div
+            key="question"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white p-8 rounded-[40px] shadow-2xl border border-slate-100 max-w-lg w-full text-center"
+          >
+            <div className="w-16 h-16 bg-orange/10 text-orange rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            
+            <h2 className="text-2xl font-black text-navy mb-4">Informações Adicionais</h2>
+            <p className="text-slate-500 mb-8 leading-relaxed">
+              O perfil de <b>{selectedRole?.replace('_', ' ').toUpperCase()}</b> necessita de detalhes adicionais (como identificação ou detalhes da viatura/negócio). Gostaria de fornecer estes dados agora para ativar este tipo de conta?
+            </p>
+            
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => setStep('form')}
+                className="w-full py-4 bg-orange text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-orange/20 hover:bg-orange/90 transition-colors"
+              >
+                Sim, Fornecer Dados
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep('selection')}
+                className="w-full py-4 bg-slate-50 text-slate-500 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-100 transition-colors"
+              >
+                Não, Voltar
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 'form' && (
           <motion.div
             key="form"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="bg-white p-8 rounded-[40px] shadow-2xl border border-slate-100 max-w-lg mx-auto"
+            className="bg-white p-8 rounded-[40px] shadow-2xl border border-slate-100 max-w-lg w-full"
           >
             <button 
-              onClick={() => setStep('selection')}
+              onClick={() => setStep('question')}
               className="flex items-center gap-2 text-slate-400 hover:text-navy mb-8 font-bold text-sm"
             >
               <ArrowLeft className="w-4 h-4" /> Voltar
@@ -174,32 +257,75 @@ export function RoleSelection() {
             <form onSubmit={handleCompleteRegistration} className="space-y-4">
               <div>
                 <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Nome Completo</label>
-                <input required type="text" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20" defaultValue={user?.user_metadata?.full_name || ''} />
+                <input 
+                  required 
+                  type="text" 
+                  className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20" 
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                />
               </div>
               
-              {selectedRole === UserRole.SELLER_MICRO || selectedRole === UserRole.SELLER_MACRO || selectedRole === UserRole.SERVICE_PROVIDER ? (
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
-                    {selectedRole === UserRole.SERVICE_PROVIDER ? 'Nome Profissional/Empresa' : 'Nome do Negócio'}
-                  </label>
-                  <input required type="text" className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20" placeholder={selectedRole === UserRole.SERVICE_PROVIDER ? "Ex: Silva Carpintaria" : "Ex: Minha Loja Pro"} />
-                </div>
-              ) : null}
+              {(selectedRole === UserRole.SELLER_MICRO || selectedRole === UserRole.SELLER_MACRO || selectedRole === UserRole.SERVICE_PROVIDER) && (
+                <>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">
+                      {selectedRole === UserRole.SERVICE_PROVIDER ? 'Nome Profissional/Empresa' : 'Nome do Negócio'}
+                    </label>
+                    <input 
+                      required 
+                      type="text" 
+                      className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20" 
+                      placeholder={selectedRole === UserRole.SERVICE_PROVIDER ? "Ex: Silva Carpintaria" : "Ex: Minha Loja Pro"} 
+                      value={businessName}
+                      onChange={e => setBusinessName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">NUIT (Documento)</label>
+                    <input 
+                      required 
+                      type="text" 
+                      className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20" 
+                      placeholder="Ex: 123456789" 
+                      value={nuit}
+                      onChange={e => setNuit(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
 
-              {selectedRole === UserRole.DELIVERER ? (
-                <div>
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Tipo de Veículo</label>
-                  <select required className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20">
-                    <option value="moto">Motocicleta</option>
-                    <option value="carro">Carro</option>
-                    <option value="bicicleta">Bicicleta</option>
-                  </select>
-                </div>
-              ) : null}
+              {selectedRole === UserRole.DELIVERER && (
+                <>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Tipo de Veículo</label>
+                    <select 
+                      required 
+                      className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20"
+                      value={vehicleType}
+                      onChange={e => setVehicleType(e.target.value)}
+                    >
+                      <option value="mota">Motocicleta</option>
+                      <option value="carro">Carro</option>
+                      <option value="bicicleta">Bicicleta</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Matrícula (Se aplicável)</label>
+                    <input 
+                      type="text" 
+                      className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 text-navy font-bold focus:ring-2 focus:ring-orange/20" 
+                      placeholder="Ex: MM-12-34-GP" 
+                      value={licensePlate}
+                      onChange={e => setLicensePlate(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
 
               <button 
                 type="submit"
-                className="w-full py-5 bg-orange text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-orange/20 hover:scale-[1.02] transition-transform active:scale-95"
+                className="w-full py-5 bg-orange text-white rounded-3xl font-black uppercase tracking-widest shadow-xl shadow-orange/20 hover:scale-[1.02] transition-transform active:scale-95 mt-4"
               >
                 Concluir Cadastro
               </button>

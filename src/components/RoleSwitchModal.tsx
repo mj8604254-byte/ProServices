@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, User as UserIcon, Store, Building2, Truck, Briefcase, ChevronRight, Check, AlertCircle, Wrench } from 'lucide-react';
+import { X, User as UserIcon, Store, Building2, Truck, Briefcase, ChevronRight, Check, AlertCircle, Wrench, ArrowLeft } from 'lucide-react';
 import { UserRole, UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -11,7 +11,7 @@ interface RoleSwitchModalProps {
 }
 
 export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchModalProps) {
-  const [step, setStep] = useState<'selection' | 'details'>('selection');
+  const [step, setStep] = useState<'selection' | 'question' | 'details'>('selection');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState({
@@ -41,7 +41,7 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
       (role === UserRole.DELIVERER) && (!currentProfile?.vehicleType);
 
     if (needsInfo) {
-      setStep('details');
+      setStep('question');
     } else {
       updateRole(role);
     }
@@ -54,6 +54,7 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
       const mappedData: any = {
         role,
         is_verified: false,
+        onboarding_completed: true,
         updated_at: new Date().toISOString()
       };
 
@@ -87,6 +88,12 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
     }
   };
 
+  const handleModalClose = () => {
+    setStep('selection');
+    setSelectedRole(null);
+    onClose();
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -96,14 +103,14 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="absolute inset-0 bg-navy/60 backdrop-blur-sm"
-            onClick={onClose}
+            onClick={handleModalClose}
           />
           
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden"
+            className="relative w-full max-w-md bg-white rounded-[40px] shadow-2xl overflow-hidden z-10"
           >
             <div className="p-8">
               <div className="flex items-center justify-between mb-8">
@@ -111,13 +118,13 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                   <h2 className="text-2xl font-black text-navy uppercase tracking-tight">Mudar de Conta</h2>
                   <p className="text-slate-400 text-xs mt-1">Alternar entre os seus perfis</p>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <button onClick={handleModalClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                   <X className="w-6 h-6 text-slate-400" />
                 </button>
               </div>
 
-              {step === 'selection' ? (
-                <div className="grid gap-3">
+              {step === 'selection' && (
+                <div className="grid gap-3 max-h-[60vh] overflow-y-auto pr-1">
                   {roles.map((r) => (
                     <button
                       key={r.id}
@@ -146,11 +153,53 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                     </button>
                   ))}
                 </div>
-              ) : (
+              )}
+
+              {step === 'question' && (
+                <div className="space-y-6 text-center">
+                  <div className="w-16 h-16 bg-orange/10 text-orange rounded-3xl flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-8 h-8" />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-xl font-black text-navy uppercase tracking-tight">Preencher Dados?</h3>
+                    <p className="text-slate-500 text-xs mt-1 leading-relaxed">
+                      O perfil de <b>{selectedRole?.replace('_', ' ').toUpperCase()}</b> requer informações adicionais para poder ser ativado. Deseja preencher esses dados agora?
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setStep('selection')}
+                      className="flex-1 py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest transition-colors text-xs"
+                    >
+                      Não, Voltar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStep('details')}
+                      className="flex-1 py-4 bg-orange hover:bg-orange/90 text-white rounded-2xl font-black uppercase tracking-widest transition-colors shadow-lg shadow-orange/20 text-xs"
+                    >
+                      Sim, Preencher
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {step === 'details' && (
                 <form onSubmit={handleSubmitDetails} className="space-y-6">
+                  <button 
+                    type="button"
+                    onClick={() => setStep('question')}
+                    className="flex items-center gap-2 text-slate-400 hover:text-navy font-bold text-xs"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Voltar
+                  </button>
+
                   <div className="p-4 bg-orange/10 rounded-2xl flex gap-3 border border-orange/20">
                     <AlertCircle className="w-5 h-5 text-orange shrink-0" />
-                    <p className="text-[11px] font-bold text-orange">Precisamos de completar o seu perfil de {selectedRole?.replace('_', ' ')} antes de alternar.</p>
+                    <p className="text-[11px] font-bold text-orange">Por favor, complete as informações para ativar o perfil de {selectedRole?.replace('_', ' ')}.</p>
                   </div>
 
                   <div className="space-y-4">
@@ -163,7 +212,7 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                           <input 
                             required
                             type="text" 
-                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20 text-xs"
                             value={details.businessName}
                             onChange={e => setDetails({...details, businessName: e.target.value})}
                           />
@@ -173,7 +222,7 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                           <input 
                             required
                             type="text" 
-                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20 text-xs"
                             value={details.nuit}
                             onChange={e => setDetails({...details, nuit: e.target.value})}
                           />
@@ -186,7 +235,7 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                         <div>
                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Tipo de Veículo</label>
                           <select 
-                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20 text-xs"
                             value={details.vehicleType}
                             onChange={e => setDetails({...details, vehicleType: e.target.value})}
                           >
@@ -200,7 +249,7 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                           <input 
                             required
                             type="text" 
-                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20"
+                            className="w-full bg-slate-50 border-none rounded-2xl px-5 py-4 font-bold focus:ring-2 focus:ring-orange/20 text-xs animate-none"
                             value={details.licensePlate}
                             onChange={e => setDetails({...details, licensePlate: e.target.value})}
                           />
@@ -212,15 +261,15 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                   <div className="flex gap-3">
                     <button 
                       type="button"
-                      onClick={() => setStep('selection')}
-                      className="flex-1 py-4 bg-slate-100 text-navy rounded-2xl font-black uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                      onClick={() => setStep('question')}
+                      className="flex-1 py-4 bg-slate-100 text-navy rounded-2xl font-black uppercase tracking-widest hover:bg-slate-200 transition-colors text-xs font-bold"
                     >
                       Voltar
                     </button>
                     <button 
                       type="submit"
                       disabled={loading}
-                      className="flex-1 py-4 bg-orange text-white rounded-2xl font-black uppercase tracking-widest hover:bg-orange/90 transition-colors shadow-lg shadow-orange/20"
+                      className="flex-1 py-4 bg-orange text-white rounded-2xl font-black uppercase tracking-widest hover:bg-orange/90 transition-colors shadow-lg shadow-orange/20 text-xs"
                     >
                       {loading ? 'A processar...' : 'Confirmar'}
                     </button>
