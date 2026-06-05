@@ -1,12 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Outlet, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom';
 import { TopNav, BottomNav } from './components/Navigation';
 import { Home } from './pages/Home';
 import { Marketplace } from './pages/Marketplace';
 import { Services, IFood, Profile, Infoproducts } from './pages/Placeholders';
 import { useAuth } from './contexts/AuthContext';
 import { Landing } from './pages/Landing';
-import { RoleSelection } from './pages/RoleSelection';
 import { Settings } from './pages/Settings';
 import { AdminChat } from './components/AdminChat';
 import { AddProduct } from './pages/AddProduct';
@@ -25,6 +24,7 @@ import { FinanceDashboard } from './pages/Admin/FinanceDashboard';
 function Layout() {
   const { user, profile, loading, hasConnectionIssue } = useAuth();
   const [guestMode, setGuestMode] = React.useState(() => sessionStorage.getItem('guest_mode') === 'true');
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -42,11 +42,6 @@ function Layout() {
     }} />;
   }
 
-  // Redirect to Role Selection if profile doesn't exist
-  if (user && !profile) {
-    return <RoleSelection />;
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <TopNav />
@@ -55,7 +50,7 @@ function Layout() {
           <span>⚠️ <strong>Modo Offline Ativo:</strong> Ligação à base de dados lenta ou em manutenção. Pode navegar livremente em modo de demonstração.</span>
         </div>
       )}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 sm:py-8 mb-20 sm:mb-0">
+      <main className={`flex-1 w-full max-w-7xl mx-auto px-4 ${location.pathname === '/' ? 'pt-0 pb-6 sm:py-8' : 'py-6 sm:py-8'} mb-20 sm:mb-0`}>
         <Outlet />
       </main>
       <BottomNav />
@@ -91,7 +86,6 @@ export default function App() {
           <Route path="tickets" element={<Support />} /> {/* Using existing support for now */}
         </Route>
 
-        <Route path="/auth/role" element={<RoleSelection />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/auth" element={<Auth />} />
       </Routes>

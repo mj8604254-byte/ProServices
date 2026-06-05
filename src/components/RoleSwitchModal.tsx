@@ -164,24 +164,36 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
                   <div>
                     <h3 className="text-xl font-black text-navy uppercase tracking-tight">Preencher Dados?</h3>
                     <p className="text-slate-500 text-xs mt-1 leading-relaxed">
-                      O perfil de <b>{selectedRole?.replace('_', ' ').toUpperCase()}</b> requer informações adicionais para poder ser ativado. Deseja preencher esses dados agora?
+                      O perfil de <b>{selectedRole?.replace('_', ' ').toUpperCase()}</b> requer informações adicionais adicionais (como NUIT ou detalhes do veículo) para poder estar completo. Deseja preencher esses dados agora?
                     </p>
                   </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setStep('selection')}
-                      className="flex-1 py-4 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-2xl font-black uppercase tracking-widest transition-colors text-xs"
-                    >
-                      Não, Voltar
-                    </button>
+                  <div className="flex flex-col gap-3">
                     <button
                       type="button"
                       onClick={() => setStep('details')}
-                      className="flex-1 py-4 bg-orange hover:bg-orange/90 text-white rounded-2xl font-black uppercase tracking-widest transition-colors shadow-lg shadow-orange/20 text-xs"
+                      className="w-full py-4 bg-orange hover:bg-orange/90 text-white rounded-2xl font-black uppercase tracking-widest transition-colors shadow-lg shadow-orange/20 text-xs"
                     >
-                      Sim, Preencher
+                      Sim, Preencher Detalhes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedRole) {
+                          updateRole(selectedRole, {});
+                        }
+                      }}
+                      disabled={loading}
+                      className="w-full py-4 bg-slate-100 hover:bg-slate-200 text-navy rounded-2xl font-black uppercase tracking-widest transition-colors text-xs"
+                    >
+                      Não, Activar Directamente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStep('selection')}
+                      className="text-xs font-bold text-slate-400 hover:text-navy uppercase tracking-wider py-1.5 transition-colors"
+                    >
+                      Voltar à Seleção
                     </button>
                   </div>
                 </div>

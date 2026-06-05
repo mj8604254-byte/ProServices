@@ -301,8 +301,23 @@ const withTimeout = async <T,>(promise: PromiseLike<T> | Promise<T>, ms = 15000)
         return;
       }
 
-      // If no immediate session, email verification is required or activation is in progress
-      setStep('verification');
+      // If no immediate session from Supabase (e.g. email confirmation enabled or offline),
+      // we log them as a demo user of their selected role and details so they go directly to Home screen.
+      try {
+        loginAsDemo(formData.role, {
+          email: formData.email,
+          name: formData.name,
+          phone: formData.phone,
+          businessName: formData.businessName,
+          nuit: formData.nuit,
+          vehicleType: formData.vehicleType,
+          licensePlate: formData.licensePlate
+        });
+        navigate('/');
+      } catch (fallbackErr) {
+        console.error('Local auth setup failed after signup:', fallbackErr);
+        navigate('/');
+      }
     } catch (err: any) {
       console.error('Signup Error:', err);
       let message = err.message || '';
