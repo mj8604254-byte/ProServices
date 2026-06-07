@@ -266,29 +266,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('uid', uid)
         .single();
 
+      const rawEmail = email || userMetadata?.email || '';
+      const fallbackProfileData = {
+        uid: uid,
+        email: rawEmail,
+        display_name: userMetadata?.full_name || userMetadata?.display_name || rawEmail.split('@')[0],
+        role: userMetadata?.role || 'customer',
+        phone_number: userMetadata?.phone || userMetadata?.phone_number || '',
+        business_name: userMetadata?.business_name || userMetadata?.businessName || '',
+        nuit: userMetadata?.nuit || '',
+        vehicle_type: userMetadata?.vehicle_type || userMetadata?.vehicleType || '',
+        license_plate: userMetadata?.license_plate || userMetadata?.licensePlate || '',
+        onboarding_completed: true,
+        is_verified: false,
+        created_at: new Date().toISOString()
+      };
+
       if (error) {
         if (error.code === 'PGRST116') {
           // No profile found in database.
-          // Directly create it using metadata from supabase auth user (the only source of truth!)
-          const rawEmail = email || userMetadata?.email || '';
-          const profileData = {
-            uid: uid,
-            email: rawEmail,
-            display_name: userMetadata?.full_name || userMetadata?.display_name || rawEmail.split('@')[0],
-            role: userMetadata?.role || 'customer',
-            phone_number: userMetadata?.phone || userMetadata?.phone_number || '',
-            business_name: userMetadata?.business_name || userMetadata?.businessName || '',
-            nuit: userMetadata?.nuit || '',
-            vehicle_type: userMetadata?.vehicle_type || userMetadata?.vehicleType || '',
-            license_plate: userMetadata?.license_plate || userMetadata?.licensePlate || '',
-            onboarding_completed: true,
-            is_verified: false,
-            created_at: new Date().toISOString()
-          };
-
+          // Directly create it using metadata from supabase auth user
           const { data: insertedData, error: insertError } = await supabase
             .from('profiles')
-            .upsert(profileData, { onConflict: 'uid' })
+            .upsert(fallbackProfileData, { onConflict: 'uid' })
             .select()
             .single();
 
@@ -308,27 +308,116 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             };
             setProfile(mapped);
           } else {
-            console.error('Failed to auto-create missing profile in database:', insertError);
-            setProfile(null);
+            console.warn('Failed to insert missing profile in database:', insertError);
+            // Fallback: Use metadata local profile object so that the user is not locked out and gets immediate access
+            const mappedFallback: UserProfile = {
+              uid: uid,
+              email: rawEmail,
+              displayName: fallbackProfileData.display_name,
+              role: fallbackProfileData.role as UserRole,
+              phoneNumber: fallbackProfileData.phone_number,
+              businessName: fallbackProfileData.business_name,
+              vehicleType: fallbackProfileData.vehicle_type,
+              licensePlate: fallbackProfileData.license_plate,
+              isVerified: false,
+              onboardingCompleted: true,
+              createdAt: fallbackProfileData.created_at
+            };
+            setProfile(mappedFallback);
           }
         } else {
           console.error('Error fetching profile:', error);
-          setProfile(null);
+          // Fallback: Use metadata local profile object so they can still access their dashboard layout
+          const mappedFallback: UserProfile = {
+            uid: uid,
+            email: rawEmail,
+            displayName: fallbackProfileData.display_name,
+            role: fallbackProfileData.role as UserRole,
+            phoneNumber: fallbackProfileData.phone_number,
+            businessName: fallbackProfileData.business_name,
+            vehicleType: fallbackProfileData.vehicle_type,
+            licensePlate: fallbackProfileData.license_plate,
+            isVerified: false,
+            onboardingCompleted: true,
+            createdAt: fallbackProfileData.created_at
+          };
+          setProfile(mappedFallback);
         }
       } else {
+        // Profile exists in database. Let's check if the basic profile requires syncing back the missing metadata fields 
+        // (like business_name, nuit, role, etc., which might be missing due to trigger configuration limitations)
+        const dbRole = data.role;
+        const dbBusinessName = data.business_name;
+        const dbNuit = data.nuit;
+        const dbPhone = data.phone_number;
+        const dbVehicle = data.vehicle_type;
+        const dbLicense = data.license_plate;
+        const dbOnboarding = data.onboarding_completed;
+
+        const metaRole = userMetadata?.role;
+        const metaBusinessName = userMetadata?.business_name || userMetadata?.businessName;
+        const metaNuit = userMetadata?.nuit;
+        const metaPhone = userMetadata?.phone || userMetadata?.phone_number || userMetadata?.phoneNumber;
+        const metaVehicle = userMetadata?.vehicle_type || userMetadata?.vehicleType;
+        const metaLicense = userMetadata?.license_plate || userMetadata?.licensePlate;
+
+        const needsSync = (dbRole !== metaRole && metaRole) ||
+                          (!dbBusinessName && metaBusinessName) ||
+                          (!dbNuit && metaNuit) ||
+                          (!dbPhone && metaPhone) ||
+                          (!dbVehicle && metaVehicle) ||
+                          (!dbLicense && metaLicense) ||
+                          dbOnboarding === false;
+
+        let finalData = data;
+        if (needsSync) {
+          const syncData: any = {};
+          if (dbRole !== metaRole && metaRole) syncData.role = metaRole;
+          if (!dbBusinessName && metaBusinessName) syncData.business_name = metaBusinessName;
+          if (!dbNuit && metaNuit) syncData.nuit = metaNuit;
+          if (!dbPhone && metaPhone) syncData.phone_number = metaPhone;
+          if (!dbVehicle && metaVehicle) syncData.vehicle_type = metaVehicle;
+          if (!dbLicense && metaLicense) syncData.license_plate = metaLicense;
+          if (dbOnboarding === false) syncData.onboarding_completed = true;
+
+          const { data: updatedData, error: updateError } = await supabase
+            .from('profiles')
+            .update(syncData)
+            .eq('uid', uid)
+            .select()
+            .single();
+
+          if (!updateError && updatedData) {
+            finalData = updatedData;
+          } else {
+            console.warn('Silent sync of registration metadata to profile database failed:', updateError);
+            // We overlay the fields from metadata onto finalData so that the local user interface is 100% accurate
+            finalData = {
+              ...data,
+              role: metaRole || dbRole,
+              business_name: dbBusinessName || metaBusinessName || '',
+              nuit: dbNuit || metaNuit || '',
+              phone_number: dbPhone || metaPhone || '',
+              vehicle_type: dbVehicle || metaVehicle || '',
+              license_plate: dbLicense || metaLicense || '',
+              onboarding_completed: true
+            };
+          }
+        }
+
         // Map snake_case to camelCase
         const mappedProfile: UserProfile = {
-          ...data,
-          displayName: data.display_name,
-          avatarUrl: data.avatar_url,
-          phoneNumber: data.phone_number,
-          businessName: data.business_name,
-          vehicleType: data.vehicle_type,
-          licensePlate: data.license_plate,
-          isVerified: data.is_verified,
-          onboardingCompleted: data.onboarding_completed,
-          referralLink: data.referral_link,
-          createdAt: data.created_at
+          ...finalData,
+          displayName: finalData.display_name,
+          avatarUrl: finalData.avatar_url,
+          phoneNumber: finalData.phone_number,
+          businessName: finalData.business_name,
+          vehicleType: finalData.vehicle_type,
+          licensePlate: finalData.license_plate,
+          isVerified: finalData.is_verified,
+          onboardingCompleted: finalData.onboarding_completed,
+          referralLink: finalData.referral_link,
+          createdAt: finalData.created_at
         };
         setProfile(mappedProfile);
       }
