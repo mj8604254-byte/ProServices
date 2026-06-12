@@ -3,10 +3,12 @@ import { Truck, ShoppingBag, Wrench, Utensils, BookOpen, ShieldCheck, Zap, Clock
 import { motion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { GuestRoleSelectorModal } from '../components/GuestRoleSelectorModal';
 
 export function Landing({ onGuestAccess }: { onGuestAccess: () => void }) {
   const navigate = useNavigate();
   const { hasConnectionIssue } = useAuth();
+  const [isSelectorOpen, setIsSelectorOpen] = React.useState(false);
 
   const handleAuth = (mode: 'login' | 'signup') => {
     navigate(`/auth?mode=${mode}`);
@@ -107,7 +109,7 @@ export function Landing({ onGuestAccess }: { onGuestAccess: () => void }) {
             </div>
             
             <button 
-              onClick={onGuestAccess}
+              onClick={() => setIsSelectorOpen(true)}
               className="text-slate-400 font-bold text-lg hover:text-white transition-all underline underline-offset-8 decoration-white/20"
             >
               Explorar como Visitante
@@ -187,6 +189,7 @@ export function Landing({ onGuestAccess }: { onGuestAccess: () => void }) {
           </div>
         </div>
       </section>
+      <GuestRoleSelectorModal isOpen={isSelectorOpen} onClose={() => setIsSelectorOpen(false)} />
     </div>
   );
 }

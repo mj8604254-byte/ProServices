@@ -19,6 +19,7 @@ interface AuthContextType {
     licensePlate?: string;
   }) => void;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
   hasConnectionIssue: false,
   loginAsDemo: () => {},
   logout: async () => {},
+  refreshProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -432,8 +434,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isAdmin = profile?.role === UserRole.ADMIN;
 
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.id, user.email, user.user_metadata);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin, hasConnectionIssue, loginAsDemo, logout }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin, hasConnectionIssue, loginAsDemo, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

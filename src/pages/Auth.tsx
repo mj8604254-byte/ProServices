@@ -21,6 +21,7 @@ import { supabase, handleSupabaseError } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { UserRole } from '../types';
+import { GuestRoleSelectorModal } from '../components/GuestRoleSelectorModal';
 
 type AuthMode = 'login' | 'signup' | 'recover' | 'reset-password';
 type SignupStep = 'basic' | 'role' | 'details' | 'verification';
@@ -28,6 +29,7 @@ type SignupStep = 'basic' | 'role' | 'details' | 'verification';
 export function Auth() {
   const navigate = useNavigate();
   const { user, loginAsDemo } = useAuth();
+  const [isGuestSelectorOpen, setIsGuestSelectorOpen] = useState(false);
   const location = useLocation();
   
   React.useEffect(() => {
@@ -503,10 +505,7 @@ const withTimeout = async <T,>(promise: PromiseLike<T> | Promise<T>, ms = 15000)
                   
                   <button 
                     type="button"
-                    onClick={() => {
-                      sessionStorage.setItem('guest_mode', 'true');
-                      navigate('/');
-                    }}
+                    onClick={() => setIsGuestSelectorOpen(true)}
                     className="w-full py-4 bg-white text-navy rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-colors border-2 border-navy/10"
                   >
                     Aceder como Visitante
@@ -673,10 +672,7 @@ const withTimeout = async <T,>(promise: PromiseLike<T> | Promise<T>, ms = 15000)
 
                     <button 
                       type="button"
-                      onClick={() => {
-                        sessionStorage.setItem('guest_mode', 'true');
-                        navigate('/');
-                      }}
+                      onClick={() => setIsGuestSelectorOpen(true)}
                       className="w-full py-4 bg-white text-navy rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-colors border-2 border-navy/10"
                     >
                       Aceder como Visitante
@@ -1045,6 +1041,7 @@ const withTimeout = async <T,>(promise: PromiseLike<T> | Promise<T>, ms = 15000)
         </div>
       </motion.div>
       </div>
+      <GuestRoleSelectorModal isOpen={isGuestSelectorOpen} onClose={() => setIsGuestSelectorOpen(false)} />
     </div>
   );
 }

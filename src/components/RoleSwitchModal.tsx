@@ -51,6 +51,17 @@ export function RoleSwitchModal({ isOpen, onClose, currentProfile }: RoleSwitchM
     if (!currentProfile) return;
     setLoading(true);
     try {
+      const isGuest = sessionStorage.getItem('guest_mode') === 'true' || currentProfile.uid.startsWith('demo_');
+      if (isGuest) {
+        sessionStorage.setItem('demo_user_role', role);
+        if ((extraData as any).businessName) sessionStorage.setItem('demo_user_business_name', (extraData as any).businessName);
+        if ((extraData as any).vehicleType) sessionStorage.setItem('demo_user_vehicle_type', (extraData as any).vehicleType);
+        if ((extraData as any).licensePlate) sessionStorage.setItem('demo_user_license_plate', (extraData as any).licensePlate);
+        onClose();
+        window.location.reload();
+        return;
+      }
+
       const mappedData: any = {
         role,
         is_verified: false,

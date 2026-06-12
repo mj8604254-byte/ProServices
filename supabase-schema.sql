@@ -199,6 +199,18 @@ CREATE OR REPLACE TRIGGER on_auth_user_signup
 -- 4. SEGURANÇA E POLÍTICAS DE RLS (ROW LEVEL SECURITY)
 -- --------------------------------------------------------------------
 
+-- Função de apoio para verificar se um utilizador é administrador sem causar recursão RLS
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM public.profiles 
+        WHERE uid = auth.uid() AND role = 'admin'
+    );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 -- Activar RLS em todas as tabelas
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
@@ -222,7 +234,7 @@ CREATE POLICY "Utilizadores autenticados criam ou atualizam o seu próprio perfi
 CREATE POLICY "Administradores têm controlo total sobre perfis" 
     ON public.profiles FOR ALL 
     TO authenticated 
-    USING (EXISTS (SELECT 1 FROM public.profiles WHERE uid = auth.uid() AND role = 'admin'));
+    USING (public.is_admin());
 
 -- POLÍTICAS: PRODUCTS
 CREATE POLICY "Produtos aprovados são públicos" 
@@ -238,7 +250,7 @@ CREATE POLICY "Vendedores podem gerir os seus próprios produtos"
 CREATE POLICY "Admins podem moderar todos os produtos" 
     ON public.products FOR ALL 
     TO authenticated 
-    USING (EXISTS (SELECT 1 FROM public.profiles WHERE uid = auth.uid() AND role = 'admin'));
+    USING (public.is_admin());
 
 -- POLÍTICAS: SERVICES
 CREATE POLICY "Serviços são visíveis publicamente" 
@@ -271,19 +283,19 @@ CREATE POLICY "Atores atribuídos podem atualizar estado"
 CREATE POLICY "Visualização de carteiras" 
     ON public.wallets FOR SELECT 
     TO authenticated 
-    USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE uid = auth.uid() AND role = 'admin'));
+    USING (auth.uid() = user_id OR public.is_admin());
 
 -- POLÍTICAS: TRANSACTIONS
 CREATE POLICY "Utilizadores veem as suas transações" 
     ON public.transactions FOR SELECT 
     TO authenticated 
-    USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE uid = auth.uid() AND role = 'admin'));
+    USING (auth.uid() = user_id OR public.is_admin());
 
 -- POLÍTICAS: PAYOUTS
 CREATE POLICY "Visualização de saques" 
     ON public.payouts FOR SELECT 
     TO authenticated 
-    USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE uid = auth.uid() AND role = 'admin'));
+    USING (auth.uid() = user_id OR public.is_admin());
 
 CREATE POLICY "Criar pedido de saque" 
     ON public.payouts FOR INSERT 
@@ -294,7 +306,7 @@ CREATE POLICY "Criar pedido de saque"
 CREATE POLICY "Ver bilhetes de suporte próprios" 
     ON public.support_tickets FOR SELECT 
     TO authenticated 
-    USING (auth.uid() = user_id OR EXISTS (SELECT 1 FROM public.profiles WHERE uid = auth.uid() AND role = 'admin'));
+    USING (auth.uid() = user_id OR public.is_admin());
 
 CREATE POLICY "Criar bilhete de suporte" 
     ON public.support_tickets FOR INSERT 

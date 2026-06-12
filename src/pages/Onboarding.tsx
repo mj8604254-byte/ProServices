@@ -62,7 +62,8 @@ export function Onboarding() {
       if (error) throw error;
       navigate('/');
     } catch (error) {
-      handleSupabaseError(error);
+      console.warn('Failed to submit onboarding selections to DB, proceeding to home anyway:', error);
+      navigate('/');
     } finally {
       setLoading(false);
     }
@@ -82,7 +83,8 @@ export function Onboarding() {
       if (error) throw error;
       navigate('/');
     } catch (error) {
-      handleSupabaseError(error);
+      console.warn('Failed to skip onboarding on DB, proceeding to home anyway:', error);
+      navigate('/');
     } finally {
       setLoading(false);
     }

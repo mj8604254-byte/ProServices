@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { supabase, handleSupabaseError } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { Product } from '../types';
 import { ItemCard } from '../components/ItemCard';
 import { Filter, Search } from 'lucide-react';
+import { MOCK_PRODUCTS } from '../constants';
 
 export function Marketplace() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -33,7 +34,8 @@ export function Marketplace() {
         
         setProducts(mappedData);
       } catch (error) {
-        handleSupabaseError(error);
+        console.warn('Failed to fetch real marketplace products, falling back to mock products:', error);
+        setProducts(MOCK_PRODUCTS as any);
       } finally {
         setLoading(false);
       }

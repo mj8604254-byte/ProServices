@@ -11,6 +11,7 @@ import { SellerDashboard } from '../components/dashboards/SellerDashboard';
 import { DelivererDashboard } from '../components/dashboards/DelivererDashboard';
 import { AffiliateDashboard } from '../components/dashboards/AffiliateDashboard';
 import { ServiceProviderDashboard } from '../components/dashboards/ServiceProviderDashboard';
+import { SettingsFields } from '../components/SettingsFields';
 
 export function Settings() {
   const navigate = useNavigate();
@@ -18,6 +19,11 @@ export function Settings() {
   const [activeTab, setActiveTab] = useState<'perfil' | 'definições'>('perfil');
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
   const [selectedSection, setSelectedSection] = useState<any | null>(null);
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(true);
+  const [currentLanguage, setCurrentLanguage] = useState<'pt' | 'en' | 'es' | 'fr'>(
+    (localStorage.getItem('mozpro_lang') as any) || 'pt'
+  );
 
   // Deletion States
   const [showDeletionModal, setShowDeletionModal] = useState(false);
@@ -179,6 +185,21 @@ export function Settings() {
       case UserRole.DELIVERER: return <DelivererDashboard profile={profile} />;
       case UserRole.AFFILIATE: return <AffiliateDashboard profile={profile} />;
       case UserRole.SERVICE_PROVIDER: return <ServiceProviderDashboard profile={profile} />;
+      case UserRole.ADMIN: return (
+        <div className="bg-white rounded-[40px] border border-slate-100 p-8 shadow-soft text-center max-w-xl mx-auto my-12">
+          <Shield className="w-16 h-16 text-red-500 mx-auto mb-6 animate-pulse" />
+          <h2 className="text-2xl font-black text-navy uppercase tracking-tight mb-2">Painel de Administrador Geral</h2>
+          <p className="text-slate-500 text-xs mb-6 leading-relaxed">
+            Como utilizador Administrador, você gere toda a infraestrutura técnica e de moderação do Moz ProServices, incluindo transações, pedidos de suporte, aprovação de produtos e vendedores.
+          </p>
+          <button 
+            onClick={() => navigate('/admin')}
+            className="inline-block px-8 py-4 bg-navy text-white font-black uppercase tracking-widest text-[11px] rounded-2xl hover:bg-orange transition-colors shadow-lg shadow-navy/10 cursor-pointer"
+          >
+            Aceder ao Painel de Controlo Central (Admin)
+          </button>
+        </div>
+      );
       default: return <CustomerDashboard profile={profile} />;
     }
   };
@@ -192,11 +213,23 @@ export function Settings() {
   ];
 
   if (selectedSection) {
+    if (activeField) {
+      return (
+        <div className="max-w-4xl mx-auto pb-24 px-4">
+          <SettingsFields 
+            sectionId={selectedSection.id} 
+            fieldName={activeField} 
+            onClose={() => setActiveField(null)} 
+          />
+        </div>
+      );
+    }
+
     return (
-      <div className="max-w-4xl mx-auto pb-24">
+      <div className="max-w-4xl mx-auto pb-24 px-4">
         <button 
           onClick={() => setSelectedSection(null)}
-          className="flex items-center gap-2 text-slate-400 font-bold mb-6 hover:text-navy transition-colors group"
+          className="flex items-center gap-2 text-slate-400 font-extrabold mb-6 hover:text-navy transition-colors group"
         >
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
           Voltar ao Painel
@@ -210,7 +243,7 @@ export function Settings() {
           <div className="bg-navy p-8 text-white flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center backdrop-blur-md">
-                <selectedSection.icon className="w-7 h-7" />
+                <selectedSection.icon className="w-7 h-7 font-black text-orange" />
               </div>
               <div>
                 <h2 className="text-2xl font-black uppercase tracking-tight">{selectedSection.title}</h2>
@@ -222,7 +255,11 @@ export function Settings() {
           <div className="p-8">
             <div className="grid md:grid-cols-2 gap-8 mb-8">
               {selectedSection.fields.map((field: string) => (
-                <div key={field} className="group p-6 bg-slate-50 rounded-[32px] border border-transparent hover:border-orange/20 hover:bg-white hover:shadow-xl transition-all">
+                <div 
+                  key={field} 
+                  onClick={() => setActiveField(field)}
+                  className="group p-6 bg-slate-50 hover:bg-white rounded-[32px] border border-transparent hover:border-orange/25 hover:shadow-2xl transition-all cursor-pointer"
+                >
                   <div className="flex items-center justify-between mb-4">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{field}</p>
                     <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-slate-300 group-hover:text-orange transition-colors">
@@ -247,21 +284,57 @@ export function Settings() {
               </div>
               
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-soft">
+                <div 
+                  onClick={async () => {
+                    if (!pushEnabled) {
+                      if ('Notification' in window) {
+                        try {
+                          const permission = await Notification.requestPermission();
+                          if (permission === 'granted') {
+                            setPushEnabled(true);
+                          } else {
+                            alert('As notificações foram negadas nas permissões do seu navegador. Ative as permissões para receber os alertas.');
+                          }
+                        } catch {
+                          setPushEnabled(true);
+                        }
+                      } else {
+                        setPushEnabled(true);
+                      }
+                    } else {
+                      setPushEnabled(false);
+                    }
+                  }}
+                  className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-soft cursor-pointer select-none"
+                >
                   <div className="flex items-center gap-3">
                     <Bell className="w-5 h-5 text-navy" />
                     <span className="text-xs font-bold text-navy">Permitir notificações Push</span>
                   </div>
-                  <div className="w-12 h-6 bg-orange rounded-full relative">
-                    <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-md" />
-                  </div>
+                  <button className={`w-12 h-6 rounded-full relative transition-colors ${pushEnabled ? 'bg-orange' : 'bg-slate-200'}`}>
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-transform ${pushEnabled ? 'right-1' : 'left-1'}`} />
+                  </button>
                 </div>
+
                 <div className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-soft">
                   <div className="flex items-center gap-3">
                     <Languages className="w-5 h-5 text-navy" />
                     <span className="text-xs font-bold text-navy">Idioma da Interface</span>
                   </div>
-                  <span className="text-[10px] font-black text-orange uppercase">Português (MZ)</span>
+                  <select 
+                    value={currentLanguage}
+                    onChange={(e) => {
+                      const lang = e.target.value as any;
+                      setCurrentLanguage(lang);
+                      localStorage.setItem('mozpro_lang', lang);
+                    }}
+                    className="text-xs font-black text-orange bg-transparent border-none focus:outline-none cursor-pointer uppercase font-mono"
+                  >
+                    <option value="pt">Português (MZ)</option>
+                    <option value="en">English (US)</option>
+                    <option value="es">Español (ES)</option>
+                    <option value="fr">Français (FR)</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -366,7 +439,10 @@ export function Settings() {
                   {section.fields.map((field) => (
                     <button 
                       key={field} 
-                      onClick={() => setSelectedSection(section)}
+                      onClick={() => {
+                        setSelectedSection(section);
+                        setActiveField(field);
+                      }}
                       className="w-full flex items-center justify-between px-4 py-3 rounded-2xl hover:bg-slate-50 transition-colors group/item"
                     >
                       <span className="text-xs text-slate-500 group-hover/item:text-navy font-bold">{field}</span>
